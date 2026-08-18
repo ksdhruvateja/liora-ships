@@ -1,4 +1,6 @@
 import { prisma } from "../src/lib/db";
+import { getEnvMarkupRule } from "../src/lib/config";
+import { applyMarkup } from "../src/lib/markup";
 
 const baseUrl = process.env.APP_URL ?? "http://localhost:3000";
 
@@ -71,8 +73,8 @@ async function main() {
   const row = await prisma.shipment.findUnique({ where: { id: publicRate.shipmentId } });
   if (!row) throw new Error("Quoted shipment missing in database");
 
-  const expectedMarkup = Math.round(row.baseCostCents * 0.1);
-  const markupOk = row.markupCents === expectedMarkup;
+  const expected = applyMarkup(row.baseCostCents, getEnvMarkupRule());
+  const markupOk = row.markupCents === expected.markupCents;
   const totalOk = row.customerTotalCents === row.baseCostCents + row.markupCents;
   const publicMatches = publicRate.customerTotalCents === row.customerTotalCents;
 
@@ -102,11 +104,12 @@ async function main() {
           currency: publicRate.currency,
         },
         markup: {
-          percent: 10,
+          percent: getEnvMarkupRule().value,
+          type: getEnvMarkupRule().type,
           baseCost: (row.baseCostCents / 100).toFixed(2),
           markup: (row.markupCents / 100).toFixed(2),
           customerPays: (row.customerTotalCents / 100).toFixed(2),
-          markupMatchesTenPercent: markupOk,
+          markupMatchesEnv: markupOk,
           totalEqualsBasePlusMarkup: totalOk,
           publicPriceIsMarkedUp: publicMatches,
         },

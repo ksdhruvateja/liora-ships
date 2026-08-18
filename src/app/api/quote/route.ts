@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getConfig, getEnvMarkupRule } from "@/lib/config";
 import { getEasyship } from "@/lib/easyship-client";
-import { applyMarkup, selectMarkupRule } from "@/lib/markup";
+import { applyMarkup } from "@/lib/markup";
 import { brandCourierName, formatEstimatedDelivery } from "@/lib/courier-names";
 import { quoteRequestSchema } from "@/lib/validations";
 import { toPublicQuoteRate } from "@/lib/public-shipment";
@@ -34,14 +34,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const [rules, maps] = await Promise.all([
-      prisma.markupRule.findMany({
-        where: { active: true, appliesToCourierId: { not: null } },
-      }),
-      prisma.courierBrandMap.findMany({ where: { active: true } }),
-    ]);
-
-    const fallbackRule = getEnvMarkupRule();
+    const maps = await prisma.courierBrandMap.findMany({ where: { active: true } });
+    const markupRule = getEnvMarkupRule();
 
     const quoteGroupId = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
@@ -49,9 +43,7 @@ export async function POST(request: Request) {
     const shipments = await prisma.$transaction(
       rates.map((rate) => {
         const baseCostCents = Math.round(rate.totalCharge * 100);
-        const rule =
-          selectMarkupRule(rules, rate.courierServiceId) ?? fallbackRule;
-        const { markupCents, customerTotalCents } = applyMarkup(baseCostCents, rule);
+        const { markupCents, customerTotalCents } = applyMarkup(baseCostCents, markupRule);
         const brandedCourierName = brandCourierName(maps, {
           courierServiceId: rate.courierServiceId,
           courierName: rate.courierName,

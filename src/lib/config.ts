@@ -20,6 +20,20 @@ function applyMockPlaceholders() {
 
 const optionalString = z.preprocess(emptyToUndefined, z.string().min(1).optional());
 
+function parseNonNegativeNumber(value: string | undefined, fallback: number) {
+  if (value == null || value.trim() === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+export function readMarkupFromEnv() {
+  return {
+    APP_MARKUP_PERCENT: parseNonNegativeNumber(process.env.APP_MARKUP_PERCENT, 10),
+    APP_MARKUP_FLAT_CENTS: Math.round(parseNonNegativeNumber(process.env.APP_MARKUP_FLAT_CENTS, 0)),
+    APP_MARKUP_CAP_CENTS: Math.round(parseNonNegativeNumber(process.env.APP_MARKUP_CAP_CENTS, 0)),
+  };
+}
+
 const envSchema = z.object({
   EASYSHIP_API_KEY: z.string().min(1, "EASYSHIP_API_KEY is required"),
   EASYSHIP_BASE_URL: z
@@ -75,7 +89,10 @@ function isBuildTime() {
 }
 
 export function getConfig(): AppConfig {
-  if (cached) return cached;
+  if (cached) {
+    Object.assign(cached, readMarkupFromEnv());
+    return cached;
+  }
   normalizeProcessEnv();
   applyMockPlaceholders();
 
@@ -117,13 +134,9 @@ export function getConfig(): AppConfig {
     throw new Error(message);
   }
 
-  const minCents = parsed.data.APP_MARKUP_FLAT_CENTS || null;
-  const maxCents = parsed.data.APP_MARKUP_CAP_CENTS || null;
-
   cached = {
     ...parsed.data,
-    APP_MARKUP_FLAT_CENTS: minCents ?? 0,
-    APP_MARKUP_CAP_CENTS: maxCents ?? 0,
+    ...readMarkupFromEnv(),
     STRIPE_WEBHOOK_SECRET: parsed.data.STRIPE_WEBHOOK_SECRET ?? "",
     appName: parsed.data.NEXT_PUBLIC_APP_NAME,
     appUrl: parsed.data.NEXT_PUBLIC_APP_URL.replace(/\/$/, ""),
@@ -134,11 +147,24 @@ export function getConfig(): AppConfig {
 
 export function getEnvMarkupRule() {
   const config = getConfig();
+  const capCents = config.APP_MARKUP_CAP_CENTS > 0 ? config.APP_MARKUP_CAP_CENTS : null;
+
+  if (config.APP_MARKUP_PERCENT === 0 && config.APP_MARKUP_FLAT_CENTS > 0) {
+    return {
+      type: "FLAT" as const,
+      value: config.APP_MARKUP_FLAT_CENTS,
+      minCents: null,
+      maxCents: capCents,
+      active: true,
+      appliesToCourierId: null as string | null,
+    };
+  }
+
   return {
     type: "PERCENT" as const,
     value: config.APP_MARKUP_PERCENT,
     minCents: config.APP_MARKUP_FLAT_CENTS > 0 ? config.APP_MARKUP_FLAT_CENTS : null,
-    maxCents: config.APP_MARKUP_CAP_CENTS > 0 ? config.APP_MARKUP_CAP_CENTS : null,
+    maxCents: capCents,
     active: true,
     appliesToCourierId: null as string | null,
   };
