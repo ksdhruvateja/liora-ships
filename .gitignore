@@ -1,0 +1,27 @@
+# dependencies
+node_modules
+
+# next / netlify / vercel
+.next
+.netlify
+.vercel
+out
+dist
+
+# env & secrets — never commit these
+.env
+.env.*
+!.env.example
+
+# logs / os
+*.log
+.DS_Store
+Thumbs.db
+
+# prisma local sqlite leftovers
+prisma/*.db
+prisma/*.db-journal
+
+# tests / typescript
+coverage
+tsconfig.tsbuildinfo

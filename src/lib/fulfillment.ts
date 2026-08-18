@@ -1,0 +1,190 @@
+import type { Shipment } from "@prisma/client";
+import { getConfig } from "./config";
+import { prisma } from "./db";
+import { createEasyshipClient, type EasyshipClient } from "./easyship";
+import { sendOpsAlert } from "./alerts";
+import { sendLabelEmail } from "./email";
+import { rememberShippedContacts } from "./contacts";
+import type { AddressInput, ParcelInput } from "./validations";
+
+export type FulfillmentDeps = {
+  easyship?: EasyshipClient;
+  sendEmail?: typeof sendLabelEmail;
+  alert?: typeof sendOpsAlert;
+  now?: () => Date;
+};
+
+function clientFromDeps(deps: FulfillmentDeps = {}): EasyshipClient {
+  if (deps.easyship) return deps.easyship;
+  const config = getConfig();
+  return createEasyshipClient({
+    apiKey: config.EASYSHIP_API_KEY,
+    baseUrl: config.EASYSHIP_BASE_URL,
+  });
+}
+
+async function withShipmentLock<T>(shipmentId: string, fn: () => Promise<T>): Promise<T> {
+  let locked = false;
+  if (typeof prisma.$executeRawUnsafe === "function") {
+    try {
+      await prisma.$executeRawUnsafe(
+        "SELECT pg_advisory_lock(hashtext($1))",
+        shipmentId,
+      );
+      locked = true;
+    } catch {
+      locked = false;
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    if (locked) {
+      try {
+        await prisma.$executeRawUnsafe(
+          "SELECT pg_advisory_unlock(hashtext($1))",
+          shipmentId,
+        );
+      } catch {
+        // ignore unlock failures
+      }
+    }
+  }
+}
+
+export async function purchaseLabelForShipment(
+  shipmentId: string,
+  deps: FulfillmentDeps = {},
+): Promise<Shipment> {
+  const config = getConfig();
+  const easyship = clientFromDeps(deps);
+  const sendEmail = deps.sendEmail ?? sendLabelEmail;
+  const alert = deps.alert ?? sendOpsAlert;
+
+  return withShipmentLock(shipmentId, async () => {
+    const existing = await prisma.shipment.findUnique({ where: { id: shipmentId } });
+    if (!existing) {
+      throw new Error(`Shipment ${shipmentId} not found`);
+    }
+    if (existing.status === "LABEL_CREATED") {
+      try {
+        await rememberShippedContacts({
+          customerEmail: existing.customerEmail,
+          originAddress: existing.originAddress,
+          destAddress: existing.destAddress,
+        });
+      } catch (error) {
+        console.error("Could not save shipped contacts", error);
+      }
+      return existing;
+    }
+    if (existing.status === "REFUNDED") {
+      throw new Error(`Shipment ${shipmentId} was refunded`);
+    }
+
+    const attempted = await prisma.shipment.update({
+      where: { id: shipmentId },
+      data: { fulfillmentAttempts: { increment: 1 } },
+    });
+
+    try {
+      const origin = existing.originAddress as AddressInput;
+      const destination = existing.destAddress as AddressInput;
+      const parcel = existing.parcel as ParcelInput;
+
+      const purchased = await easyship.createShipmentAndBuyLabel({
+        origin,
+        destination,
+        parcel,
+        courierServiceId: existing.easyshipRateId,
+        customerEmail: existing.customerEmail,
+        platformOrderNumber: existing.id,
+      });
+
+      const updated = await prisma.shipment.update({
+        where: { id: shipmentId },
+        data: {
+          status: "LABEL_CREATED",
+          easyshipShipmentId: purchased.easyshipShipmentId,
+          labelUrl: purchased.labelUrl,
+          trackingNumber: purchased.trackingNumber,
+          lastError: null,
+        },
+      });
+
+      try {
+        await rememberShippedContacts({
+          customerEmail: updated.customerEmail,
+          originAddress: updated.originAddress,
+          destAddress: updated.destAddress,
+        });
+      } catch (error) {
+        console.error("Could not save shipped contacts", error);
+      }
+
+      try {
+        await sendEmail({
+          to: updated.customerEmail,
+          shipmentId: updated.id,
+          courierName: updated.brandedCourierName,
+          trackingNumber: updated.trackingNumber,
+          labelDownloadUrl: `${config.appUrl}/api/shipments/${updated.id}/label`,
+          trackingUrl: updated.trackingNumber
+            ? `${config.appUrl}/track/${encodeURIComponent(updated.trackingNumber)}`
+            : `${config.appUrl}/shipments/${updated.id}`,
+          labelSourceUrl: updated.labelUrl,
+        });
+      } catch (emailError) {
+        await alert(
+          "Label email failed",
+          `Shipment ${shipmentId} has a label but the customer email failed: ${String(emailError)}`,
+        );
+      }
+
+      return updated;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const failedTwice = attempted.fulfillmentAttempts >= 2;
+      await prisma.shipment.update({
+        where: { id: shipmentId },
+        data: {
+          status: failedTwice ? "FAILED" : "PAID",
+          lastError: message,
+        },
+      });
+      await alert(
+        failedTwice
+          ? "Label purchase failed twice — customer paid"
+          : "Label purchase failed — will retry",
+        `Shipment ${shipmentId} (${existing.customerEmail}) paid ${existing.customerTotalCents} cents but label purchase failed: ${message}`,
+      );
+      throw error;
+    }
+  });
+}
+
+export async function reconcileStuckPaidShipments(deps: FulfillmentDeps = {}) {
+  const cutoff = new Date((deps.now?.() ?? new Date()).getTime() - 5 * 60 * 1000);
+  const stuck = await prisma.shipment.findMany({
+    where: {
+      status: "PAID",
+      updatedAt: { lte: cutoff },
+    },
+    take: 25,
+  });
+
+  const results: { id: string; ok: boolean; error?: string }[] = [];
+  for (const shipment of stuck) {
+    try {
+      await purchaseLabelForShipment(shipment.id, deps);
+      results.push({ id: shipment.id, ok: true });
+    } catch (error) {
+      results.push({
+        id: shipment.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return results;
+}

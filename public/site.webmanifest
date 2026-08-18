@@ -1,0 +1,21 @@
+{
+  "name": "Liora Labs Shipping",
+  "short_name": "Liora Labs",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#1b2c6b",
+  "background_color": "#f6f7fb",
+  "display": "standalone",
+  "start_url": "/"
+}

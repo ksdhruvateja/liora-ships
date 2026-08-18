@@ -1,0 +1,99 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ShipmentStatus {
+  QUOTED
+  PAID
+  LABEL_CREATED
+  FAILED
+  REFUNDED
+}
+
+enum MarkupType {
+  PERCENT
+  FLAT
+}
+
+model Shipment {
+  id                    String         @id @default(cuid())
+  quoteGroupId          String
+  customerEmail         String
+  originAddress         Json
+  destAddress           Json
+  parcel                Json
+  selectedCourierId     String
+  easyshipRateId        String
+  easyshipCourierName   String
+  brandedCourierName    String
+  currency              String         @default("USD")
+  baseCostCents         Int
+  markupCents           Int
+  customerTotalCents    Int
+  estimatedMinDays      Int?
+  estimatedMaxDays      Int?
+  stripePaymentIntentId String?
+  status                ShipmentStatus @default(QUOTED)
+  easyshipShipmentId    String?
+  labelUrl              String?
+  trackingNumber        String?
+  fulfillmentAttempts   Int            @default(0)
+  lastError             String?
+  expiresAt             DateTime
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([stripePaymentIntentId])
+  @@index([easyshipShipmentId])
+  @@index([quoteGroupId])
+  @@index([status, updatedAt])
+  @@index([trackingNumber])
+  @@index([customerEmail])
+}
+
+model SavedContact {
+  id            String   @id @default(cuid())
+  customerEmail String
+  role          String
+  fingerprint   String
+  label         String
+  address       Json
+  lastUsedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([customerEmail, role, fingerprint])
+  @@index([customerEmail, role, lastUsedAt])
+}
+
+model MarkupRule {
+  id                 String     @id @default(cuid())
+  type               MarkupType
+  value              Float
+  minCents           Int?
+  maxCents           Int?
+  active             Boolean    @default(true)
+  appliesToCourierId String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model CourierBrandMap {
+  id          String   @id @default(cuid())
+  matchType   String
+  matchValue  String
+  displayName String
+  sortOrder   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active, matchType])
+}

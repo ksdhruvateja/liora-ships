@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: forezships
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forezships}
+      POSTGRES_DB: forezships
+    ports:
+      - "5432:5432"
+    volumes:
+      - forezships_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forezships -d forezships"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    profiles: ["app"]
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://forezships:${POSTGRES_PASSWORD:-forezships}@db:5432/forezships
+      FOREZSHIPS_MOCK: "false"
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  forezships_pg:

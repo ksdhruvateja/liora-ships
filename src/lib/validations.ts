@@ -1,0 +1,43 @@
+import { z } from "zod";
+
+export const addressSchema = z.object({
+  line1: z.string().min(1),
+  line2: z.string().optional().default(""),
+  city: z.string().min(1),
+  state: z.string().min(1),
+  postalCode: z.string().min(1),
+  countryAlpha2: z.string().length(2).transform((v) => v.toUpperCase()),
+  contactName: z.string().min(1),
+  contactPhone: z.string().min(5),
+  contactEmail: z.string().email(),
+  companyName: z.string().optional().default(""),
+});
+
+export const parcelSchema = z.object({
+  length: z.number().positive(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  dimensionUnit: z.enum(["cm", "in"]).default("in"),
+  weight: z.number().positive(),
+  weightUnit: z.enum(["kg", "lb", "g", "oz"]).default("lb"),
+  description: z.string().min(1),
+  declaredValueCents: z.number().int().positive(),
+  declaredCurrency: z.string().length(3).default("USD"),
+  hsCode: z.string().optional(),
+  category: z.string().optional().default("merchandise"),
+});
+
+export const quoteRequestSchema = z.object({
+  customerEmail: z.string().email(),
+  origin: addressSchema,
+  destination: addressSchema,
+  parcel: parcelSchema,
+});
+
+export const checkoutRequestSchema = z.object({
+  shipmentId: z.string().min(1),
+});
+
+export type AddressInput = z.infer<typeof addressSchema>;
+export type ParcelInput = z.infer<typeof parcelSchema>;
+export type QuoteRequest = z.infer<typeof quoteRequestSchema>;
