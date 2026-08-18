@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Liora Ships — Global Shipping Solutions</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ─── Navigation ─────────────────────────────────────────────── -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="#" class="logo">
+        <span class="logo-icon">⚓</span>
+        <span>Liora Ships</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#services">Services</a>
+        <a href="#tracking">Track</a>
+        <a href="#about">About Us</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <a href="#quote" class="btn btn-primary">Get a Quote</a>
+      <button class="hamburger" id="hamburger" aria-label="Toggle menu">&#9776;</button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="#services" onclick="closeMobileMenu()">Services</a>
+      <a href="#tracking" onclick="closeMobileMenu()">Track Shipment</a>
+      <a href="#about" onclick="closeMobileMenu()">About</a>
+      <a href="#contact" onclick="closeMobileMenu()">Contact</a>
+      <a href="#quote" onclick="closeMobileMenu()" class="btn btn-primary">Get a Quote</a>
+    </div>
+  </header>
+
+  <!-- ─── Hero ───────────────────────────────────────────────────── -->
+  <section class="hero" id="hero">
+    <div class="hero-bg"></div>
+    <div class="container hero-content">
+      <p class="hero-eyebrow">Trusted worldwide since 2008</p>
+      <h1>Move Cargo.<br />Move the World.</h1>
+      <p class="hero-sub">
+        Liora Ships delivers reliable ocean, air, and land freight solutions
+        to 180+ countries — on time, every time.
+      </p>
+      <div class="hero-actions">
+        <a href="#quote" class="btn btn-primary btn-lg">Request a Quote</a>
+        <a href="#tracking" class="btn btn-outline btn-lg">Track Shipment</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><strong>2M+</strong><span>Shipments Delivered</span></div>
+        <div class="stat"><strong>180+</strong><span>Countries Served</span></div>
+        <div class="stat"><strong>99.4%</strong><span>On-Time Rate</span></div>
+        <div class="stat"><strong>24/7</strong><span>Customer Support</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Shipment Tracker ────────────────────────────────────────── -->
+  <section class="tracker-bar" id="tracking">
+    <div class="container">
+      <h2 class="section-title center">Track Your Shipment</h2>
+      <p class="section-sub center">Enter your tracking number to see real-time status updates.</p>
+      <div class="tracker-form">
+        <input
+          type="text"
+          id="trackingInput"
+          placeholder="Enter tracking number (e.g. LR-20240815-7823)"
+          maxlength="30"
+        />
+        <button class="btn btn-primary" onclick="trackShipment()">Track</button>
+      </div>
+      <div id="trackingResult" class="tracking-result hidden"></div>
+    </div>
+  </section>
+
+  <!-- ─── Services ───────────────────────────────────────────────── -->
+  <section class="services" id="services">
+    <div class="container">
+      <p class="section-eyebrow">What We Offer</p>
+      <h2 class="section-title center">End-to-End Shipping Services</h2>
+      <p class="section-sub center">
+        From a single parcel to full container loads, we have a solution that fits.
+      </p>
+      <div class="services-grid">
+
+        <div class="service-card">
+          <div class="service-icon ocean">🚢</div>
+          <h3>Ocean Freight</h3>
+          <p>Full Container Load (FCL) and Less than Container Load (LCL) options for cost-effective global shipping.</p>
+          <ul>
+            <li>FCL &amp; LCL cargo</li>
+            <li>Reefer containers</li>
+            <li>Breakbulk &amp; project cargo</li>
+          </ul>
+          <a href="#quote" class="btn btn-outline btn-sm">Learn More</a>
+        </div>
+
+        <div class="service-card featured">
+          <div class="service-badge">Most Popular</div>
+          <div class="service-icon air">✈️</div>
+          <h3>Air Freight</h3>
+          <p>Express and standard air freight for time-sensitive cargo with door-to-door tracking.</p>
+          <ul>
+            <li>Express &amp; standard air</li>
+            <li>Dangerous goods handling</li>
+            <li>Charter solutions</li>
+          </ul>
+          <a href="#quote" class="btn btn-primary btn-sm">Learn More</a>
+        </div>
+
+        <div class="service-card">
+          <div class="service-icon land">🚛</div>
+          <h3>Land Freight</h3>
+          <p>Cross-border trucking and intermodal transport across continents with real-time GPS tracking.</p>
+          <ul>
+            <li>FTL &amp; LTL trucking</li>
+            <li>Intermodal transport</li>
+            <li>Last-mile delivery</li>
+          </ul>
+          <a href="#quote" class="btn btn-outline btn-sm">Learn More</a>
+        </div>
+
+        <div class="service-card">
+          <div class="service-icon customs">📋</div>
+          <h3>Customs Brokerage</h3>
+          <p>Seamless customs clearance with expert brokers who handle all paperwork and compliance requirements.</p>
+          <ul>
+            <li>Import &amp; export clearance</li>
+            <li>Tariff classification</li>
+            <li>Compliance consulting</li>
+          </ul>
+          <a href="#quote" class="btn btn-outline btn-sm">Learn More</a>
+        </div>
+
+        <div class="service-card">
+          <div class="service-icon warehouse">🏭</div>
+          <h3>Warehousing</h3>
+          <p>Strategically located warehouses offering short and long-term storage, pick-and-pack, and distribution.</p>
+          <ul>
+            <li>Temperature-controlled storage</li>
+            <li>Pick, pack &amp; fulfillment</li>
+            <li>Inventory management</li>
+          </ul>
+          <a href="#quote" class="btn btn-outline btn-sm">Learn More</a>
+        </div>
+
+        <div class="service-card">
+          <div class="service-icon insurance">🛡️</div>
+          <h3>Cargo Insurance</h3>
+          <p>Comprehensive coverage options to protect your goods against loss or damage in transit.</p>
+          <ul>
+            <li>All-risk coverage</li>
+            <li>Named perils policies</li>
+            <li>High-value cargo</li>
+          </ul>
+          <a href="#quote" class="btn btn-outline btn-sm">Learn More</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── How It Works ────────────────────────────────────────────── -->
+  <section class="how-it-works" id="how">
+    <div class="container">
+      <p class="section-eyebrow">Simple Process</p>
+      <h2 class="section-title center">Ship in 4 Easy Steps</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">01</div>
+          <h3>Request a Quote</h3>
+          <p>Fill in your cargo details and get an instant, competitive quote within minutes.</p>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-number">02</div>
+          <h3>Book &amp; Confirm</h3>
+          <p>Choose your preferred service level, confirm booking, and receive your tracking number.</p>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-number">03</div>
+          <h3>Cargo Pickup</h3>
+          <p>Our team collects your shipment from origin and handles all documentation.</p>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step">
+          <div class="step-number">04</div>
+          <h3>Delivery &amp; Proof</h3>
+          <p>Your cargo arrives on time with a digital proof of delivery sent instantly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Quote Form ──────────────────────────────────────────────── -->
+  <section class="quote-section" id="quote">
+    <div class="container">
+      <p class="section-eyebrow">Get Started</p>
+      <h2 class="section-title center">Request a Shipping Quote</h2>
+      <p class="section-sub center">Tell us about your cargo and we'll send you a tailored quote within 2 hours.</p>
+      <form class="quote-form" id="quoteForm" onsubmit="submitQuote(event)">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="originPort">Origin Port / City</label>
+            <input type="text" id="originPort" placeholder="e.g. Shanghai, China" required />
+          </div>
+          <div class="form-group">
+            <label for="destPort">Destination Port / City</label>
+            <input type="text" id="destPort" placeholder="e.g. Rotterdam, Netherlands" required />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cargoType">Cargo Type</label>
+            <select id="cargoType" required>
+              <option value="" disabled selected>Select cargo type</option>
+              <option>General Cargo</option>
+              <option>Hazardous Materials</option>
+              <option>Perishables / Reefer</option>
+              <option>Oversized / Project Cargo</option>
+              <option>Vehicles</option>
+              <option>Electronics</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="shipMode">Shipping Mode</label>
+            <select id="shipMode" required>
+              <option value="" disabled selected>Select mode</option>
+              <option>Ocean Freight — FCL</option>
+              <option>Ocean Freight — LCL</option>
+              <option>Air Freight — Express</option>
+              <option>Air Freight — Standard</option>
+              <option>Land Freight — FTL</option>
+              <option>Land Freight — LTL</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="weight">Estimated Weight (kg)</label>
+            <input type="number" id="weight" placeholder="e.g. 500" min="1" required />
+          </div>
+          <div class="form-group">
+            <label for="volume">Estimated Volume (CBM)</label>
+            <input type="number" id="volume" placeholder="e.g. 2.5" step="0.1" min="0.1" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fullName">Full Name</label>
+            <input type="text" id="fullName" placeholder="Jane Doe" required />
+          </div>
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" placeholder="jane@company.com" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="notes">Additional Notes</label>
+          <textarea id="notes" rows="3" placeholder="Special handling requirements, Incoterms preferences, etc."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-full">Submit Quote Request</button>
+        <div id="quoteSuccess" class="form-success hidden">
+          ✅ Thank you! Your quote request has been received. We'll be in touch within 2 hours.
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ─── About ──────────────────────────────────────────────────────── -->
+  <section class="about-section" id="about">
+    <div class="container about-inner">
+      <div class="about-text">
+        <p class="section-eyebrow">About Liora Ships</p>
+        <h2 class="section-title">A Legacy of Moving What Matters</h2>
+        <p>Founded in 2008, Liora Ships has grown from a regional forwarder into a global logistics powerhouse operating in more than 180 countries. We combine deep industry expertise with modern technology to deliver freight solutions that keep supply chains moving.</p>
+        <p style="margin-top:.75rem;">Our team of 3,000+ logistics professionals works around the clock to ensure your cargo reaches its destination safely, compliantly, and on schedule — whether it's a single parcel or a full container load.</p>
+        <div class="about-badges">
+          <span class="badge">ISO 9001 Certified</span>
+          <span class="badge">IATA Accredited</span>
+          <span class="badge">WCA Member</span>
+          <span class="badge">C-TPAT Certified</span>
+        </div>
+      </div>
+      <div class="about-numbers">
+        <div class="about-stat"><strong>2008</strong><span>Year Founded</span></div>
+        <div class="about-stat"><strong>3,000+</strong><span>Employees</span></div>
+        <div class="about-stat"><strong>42</strong><span>Global Offices</span></div>
+        <div class="about-stat"><strong>$2B+</strong><span>Cargo Handled Annually</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Testimonials ────────────────────────────────────────────── -->
+  <section class="testimonials" id="testimonials">
+    <div class="container">
+      <p class="section-eyebrow">Customer Stories</p>
+      <h2 class="section-title center">Trusted by Industry Leaders</h2>
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <p class="quote">"Liora Ships cut our transit times by 30% while reducing costs. Their customs team is exceptional — zero delays in 18 months."</p>
+          <div class="reviewer">
+            <div class="avatar">MK</div>
+            <div>
+              <strong>Marcus Klein</strong>
+              <span>Head of Logistics, Bauer Manufacturing</span>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <p class="quote">"The real-time tracking dashboard gives us full visibility. We always know exactly where our cargo is, anywhere in the world."</p>
+          <div class="reviewer">
+            <div class="avatar">SC</div>
+            <div>
+              <strong>Sophie Chen</strong>
+              <span>Supply Chain Director, NovaTech</span>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial-card">
+          <p class="quote">"Outstanding service for reefer containers. Temperature logs were perfect throughout a 30-day transpacific voyage. Highly recommended."</p>
+          <div class="reviewer">
+            <div class="avatar">JO</div>
+            <div>
+              <strong>James Okafor</strong>
+              <span>COO, FreshBridge Foods</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Contact ─────────────────────────────────────────────────── -->
+  <section class="contact" id="contact">
+    <div class="container contact-inner">
+      <div class="contact-info">
+        <p class="section-eyebrow">Get in Touch</p>
+        <h2 class="section-title">Ready to Ship?<br />Let's Talk.</h2>
+        <p>Our logistics specialists are available 24/7 to assist with any shipping inquiry.</p>
+        <div class="contact-details">
+          <div class="contact-item">
+            <span class="contact-icon">📞</span>
+            <div>
+              <strong>Phone</strong>
+              <a href="tel:+18001234567">+1 800 123 4567</a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">✉️</span>
+            <div>
+              <strong>Email</strong>
+              <a href="mailto:hello@lioraships.com">hello@lioraships.com</a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <span class="contact-icon">📍</span>
+            <div>
+              <strong>Head Office</strong>
+              <span>One Maritime Plaza, San Francisco, CA 94111</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="contact-form-wrap">
+        <form class="contact-form" id="contactForm" onsubmit="submitContact(event)">
+          <div class="form-group">
+            <label for="cName">Name</label>
+            <input type="text" id="cName" placeholder="Your name" required />
+          </div>
+          <div class="form-group">
+            <label for="cEmail">Email</label>
+            <input type="email" id="cEmail" placeholder="your@email.com" required />
+          </div>
+          <div class="form-group">
+            <label for="cMessage">Message</label>
+            <textarea id="cMessage" rows="4" placeholder="How can we help?" required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Send Message</button>
+          <div id="contactSuccess" class="form-success hidden">
+            ✅ Message sent! We'll get back to you shortly.
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Footer ──────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <a href="#" class="logo">
+          <span class="logo-icon">⚓</span>
+          <span>Liora Ships</span>
+        </a>
+        <p>Moving cargo across the globe with precision, reliability, and care since 2008.</p>
+        <div class="social-links">
+          <a href="#" aria-label="LinkedIn">in</a>
+          <a href="#" aria-label="Twitter">𝕏</a>
+          <a href="#" aria-label="Facebook">f</a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Services</h4>
+        <ul>
+          <li><a href="#services">Ocean Freight</a></li>
+          <li><a href="#services">Air Freight</a></li>
+          <li><a href="#services">Land Freight</a></li>
+          <li><a href="#services">Customs Brokerage</a></li>
+          <li><a href="#services">Warehousing</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#about">About Us</a></li>
+          <li><a href="#about">Careers</a></li>
+          <li><a href="#contact">News &amp; Press</a></li>
+          <li><a href="#contact">Partners</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <ul>
+          <li><a href="#tracking">Track Shipment</a></li>
+          <li><a href="#contact">Help Center</a></li>
+          <li><a href="#contact">Claims</a></li>
+          <li><a href="#contact">Terms &amp; Privacy</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2024 Liora Ships, Inc. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
