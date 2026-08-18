@@ -121,6 +121,12 @@ export async function purchaseLabelForShipment(
     if (existing.status === "REFUNDED") {
       throw new Error(`Shipment ${shipmentId} was refunded`);
     }
+    if (existing.status === "FAILED") {
+      await prisma.shipment.update({
+        where: { id: shipmentId },
+        data: { status: "PAID", fulfillmentAttempts: 0 },
+      });
+    }
 
     const attempted = await prisma.shipment.update({
       where: { id: shipmentId },
@@ -196,13 +202,27 @@ export async function purchaseLabelForShipment(
 
 export async function reconcileStuckPaidShipments(deps: FulfillmentDeps = {}) {
   const cutoff = new Date((deps.now?.() ?? new Date()).getTime() - 5 * 60 * 1000);
-  const stuck = await prisma.shipment.findMany({
-    where: {
-      status: "PAID",
-      updatedAt: { lte: cutoff },
-    },
-    take: 25,
-  });
+  const [paidStuck, failedPaid] = await Promise.all([
+    prisma.shipment.findMany({
+      where: {
+        status: "PAID",
+        updatedAt: { lte: cutoff },
+      },
+      take: 25,
+    }),
+    prisma.shipment.findMany({
+      where: {
+        status: "FAILED",
+        stripePaymentIntentId: { not: null },
+      },
+      take: 25,
+    }),
+  ]);
+  const paymentFailure = /payment failed|card declined|insufficient funds|your card/i;
+  const stuck = [
+    ...paidStuck,
+    ...failedPaid.filter((row) => !paymentFailure.test(row.lastError ?? "")),
+  ];
 
   const results: { id: string; ok: boolean; error?: string }[] = [];
   for (const shipment of stuck) {

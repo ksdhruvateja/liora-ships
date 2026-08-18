@@ -166,4 +166,30 @@ describe("stripe webhook idempotency", () => {
     expect(easyship.createShipmentAndBuyLabel).not.toHaveBeenCalled();
     expect(store.rows.get("ship_1")?.status).toBe("FAILED");
   });
+
+  it("retries label purchase after a paid shipment failed at the carrier", async () => {
+    store.rows.set("ship_1", {
+      ...quotedShipment(),
+      status: "FAILED",
+      stripePaymentIntentId: "pi_123",
+      lastError: "origin_address.company_name can't be blank",
+      fulfillmentAttempts: 4,
+    });
+    const easyship = {
+      requestRates: vi.fn(),
+      createShipmentAndBuyLabel: vi.fn().mockResolvedValue({
+        easyshipShipmentId: "ES_SECRET",
+        labelUrl: "https://provider.example/labels/secret.pdf",
+        trackingNumber: "1Z999",
+      }),
+    };
+    const sendEmail = vi.fn().mockResolvedValue({ id: "email_1" });
+    const alert = vi.fn();
+
+    await handleStripeEvent(succeededEvent(), { easyship, sendEmail, alert });
+
+    expect(easyship.createShipmentAndBuyLabel).toHaveBeenCalledTimes(1);
+    expect(store.rows.get("ship_1")?.status).toBe("LABEL_CREATED");
+    expect(store.rows.get("ship_1")?.trackingNumber).toBe("1Z999");
+  });
 });

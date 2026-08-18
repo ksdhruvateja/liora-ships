@@ -62,7 +62,14 @@ export async function handleStripeEvent(
       data: { stripePaymentIntentId: intent.id },
     });
   } else if (shipment.status === "FAILED") {
-    return { handled: true, shipmentId, skipped: true, status: shipment.status };
+    await prisma.shipment.update({
+      where: { id: shipmentId },
+      data: {
+        status: "PAID",
+        stripePaymentIntentId: intent.id,
+        fulfillmentAttempts: 0,
+      },
+    });
   }
 
   const latest = await prisma.shipment.findUnique({ where: { id: shipmentId } });

@@ -58,6 +58,14 @@ export type EasyshipClient = {
   }) => Promise<PurchasedLabel>;
 };
 
+function companyNameForCourier(address: AddressInput) {
+  const company = address.companyName?.trim();
+  if (company) return company;
+  const contact = address.contactName?.trim();
+  if (contact) return contact;
+  return "Individual";
+}
+
 function toEasyshipAddress(address: AddressInput) {
   return {
     line_1: address.line1,
@@ -66,7 +74,7 @@ function toEasyshipAddress(address: AddressInput) {
     state: address.state,
     postal_code: address.postalCode,
     country_alpha2: address.countryAlpha2,
-    company_name: address.companyName || undefined,
+    company_name: companyNameForCourier(address),
     contact_name: address.contactName,
     contact_phone: address.contactPhone,
     contact_email: address.contactEmail,
