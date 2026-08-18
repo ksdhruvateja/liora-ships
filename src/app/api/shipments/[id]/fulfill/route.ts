@@ -47,7 +47,11 @@ export async function POST(
     data: { object: intent },
   } as Stripe.Event;
 
-  await handleStripeEvent(event);
+  try {
+    await handleStripeEvent(event);
+  } catch (error) {
+    console.error("Fulfill failed", error);
+  }
   const updated = await prisma.shipment.findUnique({ where: { id: shipment.id } });
   if (!updated) {
     return NextResponse.json({ error: "Shipment not found." }, { status: 404 });

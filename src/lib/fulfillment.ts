@@ -23,15 +23,15 @@ function clientFromDeps(deps: FulfillmentDeps = {}): EasyshipClient {
   });
 }
 
-async function withShipmentLock<T>(shipmentId: string, fn: () => Promise<T>): Promise<T> {
+async function withShipmentLock<T>(shipmentId: string, fn: () => Promise<T>): Promise<T | "busy"> {
   let locked = false;
-  if (typeof prisma.$executeRawUnsafe === "function") {
+  if (typeof prisma.$queryRaw === "function") {
     try {
-      await prisma.$executeRawUnsafe(
-        "SELECT pg_advisory_lock(hashtext($1))",
-        shipmentId,
-      );
-      locked = true;
+      const rows = await prisma.$queryRaw<Array<{ locked: boolean | null }>>`
+        SELECT pg_try_advisory_lock(hashtext(${shipmentId})) AS locked
+      `;
+      locked = Boolean(rows?.[0]?.locked);
+      if (!locked) return "busy";
     } catch {
       locked = false;
     }
@@ -41,10 +41,9 @@ async function withShipmentLock<T>(shipmentId: string, fn: () => Promise<T>): Pr
   } finally {
     if (locked) {
       try {
-        await prisma.$executeRawUnsafe(
-          "SELECT pg_advisory_unlock(hashtext($1))",
-          shipmentId,
-        );
+        await prisma.$queryRaw`
+          SELECT pg_advisory_unlock(hashtext(${shipmentId}))
+        `;
       } catch {
         // ignore unlock failures
       }
@@ -61,7 +60,7 @@ export async function purchaseLabelForShipment(
   const sendEmail = deps.sendEmail ?? sendLabelEmail;
   const alert = deps.alert ?? sendOpsAlert;
 
-  return withShipmentLock(shipmentId, async () => {
+  const result = await withShipmentLock(shipmentId, async () => {
     const existing = await prisma.shipment.findUnique({ where: { id: shipmentId } });
     if (!existing) {
       throw new Error(`Shipment ${shipmentId} not found`);
@@ -122,45 +121,53 @@ export async function purchaseLabelForShipment(
         console.error("Could not save shipped contacts", error);
       }
 
-      try {
-        await sendEmail({
-          to: updated.customerEmail,
-          shipmentId: updated.id,
-          courierName: updated.brandedCourierName,
-          trackingNumber: updated.trackingNumber,
-          labelDownloadUrl: `${config.appUrl}/api/shipments/${updated.id}/label`,
-          trackingUrl: updated.trackingNumber
-            ? `${config.appUrl}/track/${encodeURIComponent(updated.trackingNumber)}`
-            : `${config.appUrl}/shipments/${updated.id}`,
-          labelSourceUrl: updated.labelUrl,
-        });
-      } catch (emailError) {
+      void sendEmail({
+        to: updated.customerEmail,
+        shipmentId: updated.id,
+        courierName: updated.brandedCourierName,
+        trackingNumber: updated.trackingNumber,
+        labelDownloadUrl: `${config.appUrl}/api/shipments/${updated.id}/label`,
+        trackingUrl: updated.trackingNumber
+          ? `${config.appUrl}/track/${encodeURIComponent(updated.trackingNumber)}`
+          : `${config.appUrl}/shipments/${updated.id}`,
+        labelSourceUrl: updated.labelUrl,
+      }).catch(async (emailError) => {
         await alert(
           "Label email failed",
           `Shipment ${shipmentId} has a label but the customer email failed: ${String(emailError)}`,
         );
-      }
+      });
 
       return updated;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const failedTwice = attempted.fulfillmentAttempts >= 2;
+      const retryable = /timed out|timeout|abort|504|502|503|network/i.test(message);
+      const failedEnough = attempted.fulfillmentAttempts >= (retryable ? 6 : 4);
       await prisma.shipment.update({
         where: { id: shipmentId },
         data: {
-          status: failedTwice ? "FAILED" : "PAID",
+          status: failedEnough ? "FAILED" : "PAID",
           lastError: message,
         },
       });
       await alert(
-        failedTwice
-          ? "Label purchase failed twice — customer paid"
+        failedEnough
+          ? "Label purchase failed after several tries — customer paid"
           : "Label purchase failed — will retry",
         `Shipment ${shipmentId} (${existing.customerEmail}) paid ${existing.customerTotalCents} cents but label purchase failed: ${message}`,
       );
       throw error;
     }
   });
+
+  if (result === "busy") {
+    const current = await prisma.shipment.findUnique({ where: { id: shipmentId } });
+    if (!current) {
+      throw new Error(`Shipment ${shipmentId} not found`);
+    }
+    return current;
+  }
+  return result;
 }
 
 export async function reconcileStuckPaidShipments(deps: FulfillmentDeps = {}) {

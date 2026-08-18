@@ -198,26 +198,38 @@ export function createEasyshipClient(options: {
   const baseUrl = options.baseUrl.replace(/\/$/, "");
 
   async function easyshipFetch<T>(path: string, init: RequestInit): Promise<T> {
-    const response = await fetchImpl(`${baseUrl}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${options.apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        ...(init.headers ?? {}),
-      },
-    });
-    const text = await response.text();
-    const body = text ? JSON.parse(text) : {};
-    if (!response.ok) {
-      const details = Array.isArray(body?.error?.details)
-        ? body.error.details.filter(Boolean).join("; ")
-        : "";
-      const message = [body?.error?.message, details].filter(Boolean).join(" — ")
-        || `Shipping request failed (${response.status})`;
-      throw new Error(message);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const response = await fetchImpl(`${baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${options.apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(init.headers ?? {}),
+        },
+      });
+      const text = await response.text();
+      const body = text ? JSON.parse(text) : {};
+      if (!response.ok) {
+        const details = Array.isArray(body?.error?.details)
+          ? body.error.details.filter(Boolean).join("; ")
+          : "";
+        const message = [body?.error?.message, details].filter(Boolean).join(" — ")
+          || `Shipping request failed (${response.status})`;
+        throw new Error(message);
+      }
+      return body as T;
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error("Carrier request timed out");
+      }
+      throw error;
+    } finally {
+      clearTimeout(timer);
     }
-    return body as T;
   }
 
   return {

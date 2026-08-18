@@ -14,29 +14,57 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
-    let askedFulfillment = false;
+    let fulfillInFlight = false;
 
-    async function poll(tryFulfill: boolean) {
+    async function load() {
+      const response = await fetch(`/api/shipments/${shipmentId}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Not found");
+      return data.shipment as PublicShipment;
+    }
+
+    async function poll() {
       try {
-        if (tryFulfill && !askedFulfillment) {
-          askedFulfillment = true;
-          await fetch(`/api/shipments/${shipmentId}/fulfill`, { method: "POST" });
-        }
-        const response = await fetch(`/api/shipments/${shipmentId}`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error ?? "Not found");
+        const current = await load();
         if (cancelled) return;
-        setShipment(data.shipment);
-        const status = data.shipment.status as string;
-        if (status === "QUOTED" || status === "PAID") {
-          timer = setTimeout(() => poll(status === "PAID"), 2500);
+        setShipment(current);
+        setError(null);
+
+        if (current.status === "LABEL_CREATED" || current.status === "FAILED") {
+          return;
+        }
+
+        if (!fulfillInFlight && (current.status === "QUOTED" || current.status === "PAID")) {
+          fulfillInFlight = true;
+          try {
+            await fetch(`/api/shipments/${shipmentId}/fulfill`, { method: "POST" });
+            if (!cancelled) {
+              const after = await load();
+              setShipment(after);
+              if (after.status === "LABEL_CREATED" || after.status === "FAILED") {
+                fulfillInFlight = false;
+                return;
+              }
+            }
+          } catch {
+            // Keep polling; the next tick will try again.
+          } finally {
+            fulfillInFlight = false;
+          }
+        }
+
+        if (!cancelled) {
+          timer = setTimeout(poll, 2500);
         }
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Unable to load shipment");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Unable to load shipment");
+          timer = setTimeout(poll, 4000);
+        }
       }
     }
 
-    poll(true);
+    poll();
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
@@ -137,6 +165,11 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
         Hang tight — {appName} is generating your shipping label automatically after payment. This page updates
         by itself.
       </p>
+      {shipment.lastError ? (
+        <p className="mt-3 text-sm text-muted">
+          Still working with the carrier. If this stays here more than a minute, refresh the page.
+        </p>
+      ) : null}
     </div>
   );
 }

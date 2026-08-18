@@ -76,6 +76,16 @@ export async function handleStripeEvent(
     return { handled: true, shipmentId, skipped: true, status: "LABEL_CREATED" };
   }
 
-  await purchaseLabelForShipment(shipmentId, deps);
-  return { handled: true, shipmentId, status: "LABEL_CREATED" };
+  try {
+    await purchaseLabelForShipment(shipmentId, deps);
+    return { handled: true, shipmentId, status: "LABEL_CREATED" };
+  } catch (error) {
+    console.error("Label purchase after payment will retry", error);
+    return {
+      handled: true,
+      shipmentId,
+      status: "PAID",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
