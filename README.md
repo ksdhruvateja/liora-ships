@@ -43,6 +43,8 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 5. Before the first deploy, add every variable from `.env.example` in **Site configuration → Environment variables**. Then set:
    - `NEXT_PUBLIC_APP_URL` to `https://your-site.netlify.app` (or your custom domain)
    - `GMAIL_APP_PASSWORD` (Google App Password, not your Gmail login)
+   - Leave `NEXT_PUBLIC_APP_URL` blank on Netlify — the HTTPS site URL is applied automatically
+   - After deploy, Stripe webhook: `https://your-site.netlify.app/api/webhooks/stripe`
    - `CRON_SECRET` to a long random string
    - `FOREZSHIPS_MOCK=false`
 6. Deploy. The build runs Prisma migrations, then `next build`.

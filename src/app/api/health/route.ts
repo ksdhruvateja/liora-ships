@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
+import { stripeWebhookUrl } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,10 +13,14 @@ export async function GET() {
     floorCents: config.APP_MARKUP_FLAT_CENTS,
     capCents: config.APP_MARKUP_CAP_CENTS,
   };
+  const urls = {
+    appUrl: config.appUrl,
+    stripeWebhookUrl: stripeWebhookUrl(config.appUrl),
+  };
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json({ ok: true, service: "liora-labs", markup });
+    return NextResponse.json({ ok: true, service: "liora-labs", markup, urls });
   } catch {
-    return NextResponse.json({ ok: false, service: "liora-labs", markup }, { status: 503 });
+    return NextResponse.json({ ok: false, service: "liora-labs", markup, urls }, { status: 503 });
   }
 }

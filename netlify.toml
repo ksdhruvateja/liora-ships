@@ -1,11 +1,33 @@
-# Netlify — Next.js App Router (OpenNext runtime is applied automatically)
+# Netlify — Next.js App Router
 [build]
   command = "npm run build"
   publish = ".next"
 
+# Public defaults only. Stripe/Easyship/Gmail/DB keys must stay in the Netlify UI, never in git.
 [build.environment]
   NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
+  FOREZSHIPS_MOCK = "false"
+  NEXT_PUBLIC_APP_NAME = "Liora Labs Shipping"
+  EASYSHIP_BASE_URL = "https://public-api.easyship.com/2024-09"
+  APP_MARKUP_PERCENT = "10"
+  APP_MARKUP_FLAT_CENTS = "0"
+  APP_MARKUP_CAP_CENTS = "0"
+  GMAIL_USER = "zippyyycare@gmail.com"
+  LABEL_NOTIFY_EMAIL = "zippyyycare@gmail.com"
+  ALERT_EMAIL = "zippyyycare@gmail.com"
+
+# These fields show up when deploying this repo on Netlify. Paste values there.
+[template.environment]
+  DATABASE_URL = "Neon pooled Postgres URL (host has -pooler)"
+  DIRECT_URL = "Neon direct Postgres URL (optional)"
+  EASYSHIP_API_KEY = "Easyship API key"
+  STRIPE_SECRET_KEY = "Stripe secret key (sk_test_ or sk_live_)"
+  STRIPE_WEBHOOK_SECRET = "Stripe webhook signing secret (whsec_)"
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "Stripe publishable key (pk_test_ or pk_live_)"
+  GMAIL_APP_PASSWORD = "Gmail App Password (16 characters)"
+  CRON_SECRET = "Random secret for the reconcile job"
+  APP_MARKUP_PERCENT = "Markup percent on carrier cost (example 10)"
 
 [functions]
   directory = "netlify/functions"
@@ -16,5 +38,10 @@
 
 [[headers]]
   for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/api/webhooks/stripe"
   [headers.values]
     Cache-Control = "no-store"

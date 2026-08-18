@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { emptyToUndefined, normalizeProcessEnv } from "./env";
+import { emptyToUndefined, normalizeProcessEnv, resolvePublicAppUrl } from "./env";
 
 function isMockEnabled() {
   const value = process.env.FOREZSHIPS_MOCK?.toLowerCase();
@@ -139,7 +139,7 @@ export function getConfig(): AppConfig {
     ...readMarkupFromEnv(),
     STRIPE_WEBHOOK_SECRET: parsed.data.STRIPE_WEBHOOK_SECRET ?? "",
     appName: parsed.data.NEXT_PUBLIC_APP_NAME,
-    appUrl: parsed.data.NEXT_PUBLIC_APP_URL.replace(/\/$/, ""),
+    appUrl: resolvePublicAppUrl(),
     mockMode: isMockEnabled(),
   };
   return cached;
