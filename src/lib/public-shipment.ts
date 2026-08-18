@@ -18,6 +18,7 @@ export type PublicShipment = {
   labelEmailEnabled: boolean;
   notifyEmail: string;
   lastError: string | null;
+  labelEmailSent: boolean;
 };
 
 function estimatedDelivery(shipment: Shipment) {
@@ -49,6 +50,7 @@ export function toPublicShipment(shipment: Shipment): PublicShipment {
       shipment.status === "PAID" || shipment.status === "FAILED"
         ? shipment.lastError
         : null,
+    labelEmailSent: Boolean(shipment.labelEmailSentAt),
   };
 }
 

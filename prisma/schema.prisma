@@ -46,6 +46,7 @@ model Shipment {
   trackingNumber        String?
   fulfillmentAttempts   Int            @default(0)
   lastError             String?
+  labelEmailSentAt      DateTime?
   expiresAt             DateTime
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt

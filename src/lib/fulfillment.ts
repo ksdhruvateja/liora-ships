@@ -51,13 +51,54 @@ async function withShipmentLock<T>(shipmentId: string, fn: () => Promise<T>): Pr
   }
 }
 
+export async function ensureLabelEmailSent(
+  shipment: Shipment,
+  deps: FulfillmentDeps = {},
+): Promise<Shipment> {
+  if (shipment.status !== "LABEL_CREATED") return shipment;
+  if (shipment.labelEmailSentAt) return shipment;
+
+  const config = getConfig();
+  const sendEmail = deps.sendEmail ?? sendLabelEmail;
+  const alert = deps.alert ?? sendOpsAlert;
+
+  try {
+    const result = await sendEmail({
+      to: shipment.customerEmail,
+      shipmentId: shipment.id,
+      courierName: shipment.brandedCourierName,
+      trackingNumber: shipment.trackingNumber,
+      labelDownloadUrl: `${config.appUrl}/api/shipments/${shipment.id}/label`,
+      trackingUrl: shipment.trackingNumber
+        ? `${config.appUrl}/track/${encodeURIComponent(shipment.trackingNumber)}`
+        : `${config.appUrl}/shipments/${shipment.id}`,
+      labelSourceUrl: shipment.labelUrl,
+    });
+    if (result && "skipped" in result && result.skipped) {
+      await alert(
+        "Label email skipped",
+        `Shipment ${shipment.id} is ready, but GMAIL_APP_PASSWORD is missing so ${shipment.customerEmail} was not emailed.`,
+      );
+      return shipment;
+    }
+    return prisma.shipment.update({
+      where: { id: shipment.id },
+      data: { labelEmailSentAt: new Date() },
+    });
+  } catch (emailError) {
+    await alert(
+      "Label email failed",
+      `Shipment ${shipment.id} has a label but the email to ${shipment.customerEmail} failed: ${String(emailError)}`,
+    );
+    return shipment;
+  }
+}
+
 export async function purchaseLabelForShipment(
   shipmentId: string,
   deps: FulfillmentDeps = {},
 ): Promise<Shipment> {
-  const config = getConfig();
   const easyship = clientFromDeps(deps);
-  const sendEmail = deps.sendEmail ?? sendLabelEmail;
   const alert = deps.alert ?? sendOpsAlert;
 
   const result = await withShipmentLock(shipmentId, async () => {
@@ -75,7 +116,7 @@ export async function purchaseLabelForShipment(
       } catch (error) {
         console.error("Could not save shipped contacts", error);
       }
-      return existing;
+      return ensureLabelEmailSent(existing, deps);
     }
     if (existing.status === "REFUNDED") {
       throw new Error(`Shipment ${shipmentId} was refunded`);
@@ -121,24 +162,7 @@ export async function purchaseLabelForShipment(
         console.error("Could not save shipped contacts", error);
       }
 
-      void sendEmail({
-        to: updated.customerEmail,
-        shipmentId: updated.id,
-        courierName: updated.brandedCourierName,
-        trackingNumber: updated.trackingNumber,
-        labelDownloadUrl: `${config.appUrl}/api/shipments/${updated.id}/label`,
-        trackingUrl: updated.trackingNumber
-          ? `${config.appUrl}/track/${encodeURIComponent(updated.trackingNumber)}`
-          : `${config.appUrl}/shipments/${updated.id}`,
-        labelSourceUrl: updated.labelUrl,
-      }).catch(async (emailError) => {
-        await alert(
-          "Label email failed",
-          `Shipment ${shipmentId} has a label but the customer email failed: ${String(emailError)}`,
-        );
-      });
-
-      return updated;
+      return ensureLabelEmailSent(updated, deps);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const retryable = /timed out|timeout|abort|504|502|503|network/i.test(message);

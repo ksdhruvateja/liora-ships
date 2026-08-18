@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { handleStripeEvent } from "@/lib/stripe-webhook";
+import { ensureLabelEmailSent } from "@/lib/fulfillment";
 import { toPublicShipment } from "@/lib/public-shipment";
 import type Stripe from "stripe";
 
@@ -18,7 +19,8 @@ export async function POST(
     return NextResponse.json({ error: "Shipment not found." }, { status: 404 });
   }
   if (shipment.status === "LABEL_CREATED") {
-    return NextResponse.json({ shipment: toPublicShipment(shipment) });
+    const updated = await ensureLabelEmailSent(shipment);
+    return NextResponse.json({ shipment: toPublicShipment(updated) });
   }
   if (!shipment.stripePaymentIntentId) {
     return NextResponse.json({ error: "Payment has not started." }, { status: 409 });

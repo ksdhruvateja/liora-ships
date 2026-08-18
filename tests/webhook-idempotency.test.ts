@@ -85,6 +85,7 @@ function quotedShipment(): Shipment {
     trackingNumber: null,
     fulfillmentAttempts: 0,
     lastError: null,
+    labelEmailSentAt: null,
     expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
     createdAt: now,
     updatedAt: now,

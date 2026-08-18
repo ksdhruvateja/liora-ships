@@ -31,6 +31,18 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
         setError(null);
 
         if (current.status === "LABEL_CREATED" || current.status === "FAILED") {
+          if (
+            current.status === "LABEL_CREATED" &&
+            current.labelEmailEnabled &&
+            !current.labelEmailSent
+          ) {
+            try {
+              await fetch(`/api/shipments/${shipmentId}/email`, { method: "POST" });
+              if (!cancelled) setShipment(await load());
+            } catch {
+              // Label is ready even if the backup email request fails.
+            }
+          }
           return;
         }
 
@@ -43,6 +55,18 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
               setShipment(after);
               if (after.status === "LABEL_CREATED" || after.status === "FAILED") {
                 fulfillInFlight = false;
+                if (
+                  after.status === "LABEL_CREATED" &&
+                  after.labelEmailEnabled &&
+                  !after.labelEmailSent
+                ) {
+                  try {
+                    await fetch(`/api/shipments/${shipmentId}/email`, { method: "POST" });
+                    if (!cancelled) setShipment(await load());
+                  } catch {
+                    // Label is ready even if the backup email request fails.
+                  }
+                }
                 return;
               }
             }
@@ -98,9 +122,11 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
         <p className="eyebrow">Label ready</p>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">You’re all set</h1>
         <p className="mt-3 text-muted">
-          {shipment.labelEmailEnabled
-            ? `A backup copy was emailed from ${shipment.notifyEmail} to ${shipment.customerEmail}, with the PDF attached.`
-            : `Download the PDF below, or email a backup copy to ${shipment.customerEmail} from your Gmail.`}
+          {shipment.labelEmailSent
+            ? `A copy was emailed to ${shipment.customerEmail}, with the PDF attached when available.`
+            : shipment.labelEmailEnabled
+              ? `We are emailing a copy to ${shipment.customerEmail}. You can also download the PDF below.`
+              : `Download the PDF below. A copy will also be emailed to ${shipment.customerEmail} once mail is configured.`}
         </p>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <div>

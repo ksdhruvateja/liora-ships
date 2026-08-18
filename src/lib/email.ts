@@ -88,7 +88,7 @@ async function loadLabelPdf(sourceUrl: string | null | undefined) {
 }
 
 export function canSendLabelEmail() {
-  return Boolean(getConfig().GMAIL_APP_PASSWORD);
+  return Boolean(getConfig().GMAIL_APP_PASSWORD.replace(/\s+/g, ""));
 }
 
 export function labelMailtoHref(input: {
@@ -111,7 +111,7 @@ export function labelMailtoHref(input: {
 function gmailTransport() {
   const config = getConfig();
   const user = config.GMAIL_USER || OPERATOR_EMAIL;
-  const pass = config.GMAIL_APP_PASSWORD;
+  const pass = config.GMAIL_APP_PASSWORD.replace(/\s+/g, "");
   if (!pass) {
     throw new Error("GMAIL_APP_PASSWORD is missing — Gmail will not send without it.");
   }

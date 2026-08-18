@@ -29,6 +29,7 @@ function shipment(): Shipment {
     trackingNumber: "1ZFOREZ",
     fulfillmentAttempts: 1,
     lastError: null,
+    labelEmailSentAt: null,
     expiresAt: now,
     createdAt: now,
     updatedAt: now,

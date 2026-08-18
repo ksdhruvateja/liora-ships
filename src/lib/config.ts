@@ -54,7 +54,10 @@ const envSchema = z.object({
     emptyToUndefined,
     z.string().email().default("zippyyycare@gmail.com"),
   ),
-  GMAIL_APP_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional().default("")),
+  GMAIL_APP_PASSWORD: z.preprocess((value) => {
+    if (typeof value !== "string") return emptyToUndefined(value);
+    return emptyToUndefined(value.replace(/\s+/g, ""));
+  }, z.string().optional().default("")),
   LABEL_NOTIFY_EMAIL: z.preprocess(
     emptyToUndefined,
     z.string().email().default("zippyyycare@gmail.com"),
