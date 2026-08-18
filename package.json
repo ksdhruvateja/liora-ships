@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "node scripts/with-db-env.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",

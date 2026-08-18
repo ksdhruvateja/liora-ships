@@ -20,7 +20,7 @@
 # These fields show up when deploying this repo on Netlify. Paste values there.
 [template.environment]
   DATABASE_URL = "Neon pooled Postgres URL (host has -pooler)"
-  DIRECT_URL = "Neon direct Postgres URL (optional)"
+  DIRECT_URL = "Neon direct Postgres URL (optional — derived from DATABASE_URL if blank)"
   EASYSHIP_API_KEY = "Easyship API key"
   STRIPE_SECRET_KEY = "Stripe secret key (sk_test_ or sk_live_)"
   STRIPE_WEBHOOK_SECRET = "Stripe webhook signing secret (whsec_)"
