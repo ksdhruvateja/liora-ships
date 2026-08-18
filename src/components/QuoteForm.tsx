@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { formatMoney } from "@/lib/money";
 import { splitDisplayCourierName } from "@/lib/courier-names";
+import {
+  DEFAULT_COMPANY_NAME,
+  PARCEL_CONTENT_OPTIONS,
+  companyNameOrDefault,
+  parcelCategoryForContents,
+} from "@/lib/parcel-contents";
 import { MotionButton } from "@/components/motion/Pressable";
 
 type Address = {
@@ -28,6 +34,7 @@ type Parcel = {
   weight: string;
   weightUnit: "lb" | "kg";
   description: string;
+  customDescription: string;
   declaredValue: string;
 };
 
@@ -134,6 +141,7 @@ function AddressFields({
           type="text"
           autoComplete="off"
           value={value.companyName}
+          placeholder={DEFAULT_COMPANY_NAME}
           onChange={(e) => onChange("companyName", e.target.value)}
         />
       </Field>
@@ -243,6 +251,7 @@ export function QuoteForm() {
     weight: "",
     weightUnit: "lb",
     description: "",
+    customDescription: "",
     declaredValue: "",
   });
   const [rates, setRates] = useState<QuoteRate[]>([]);
@@ -311,10 +320,22 @@ export function QuoteForm() {
     setRates([]);
     setSelectedId(null);
     try {
-      const originPayload = { ...origin, contactEmail: customerEmail || origin.contactEmail };
+      const contents =
+        parcel.description === "Other"
+          ? parcel.customDescription.trim()
+          : parcel.description;
+      if (!contents) {
+        throw new Error("Select what is in the parcel.");
+      }
+      const originPayload = {
+        ...origin,
+        contactEmail: customerEmail || origin.contactEmail,
+        companyName: companyNameOrDefault(origin.companyName),
+      };
       const destPayload = {
         ...destination,
         contactEmail: destination.contactEmail || customerEmail,
+        companyName: companyNameOrDefault(destination.companyName),
       };
       const response = await fetch("/api/quote", {
         method: "POST",
@@ -324,11 +345,14 @@ export function QuoteForm() {
           origin: originPayload,
           destination: destPayload,
           parcel: {
-            ...parcel,
             length: Number(parcel.length),
             width: Number(parcel.width),
             height: Number(parcel.height),
+            dimensionUnit: parcel.dimensionUnit,
             weight: Number(parcel.weight),
+            weightUnit: parcel.weightUnit,
+            description: contents,
+            category: parcelCategoryForContents(parcel.description),
             declaredValueCents: Math.round(Number(parcel.declaredValue) * 100),
           },
         }),
@@ -431,9 +455,38 @@ export function QuoteForm() {
                 <option value="kg">Kilograms</option>
               </select>
             </Field>
-            <Field label="Contents" required>
-              <input className={inputClass} type="text" autoComplete="off" required value={parcel.description} onChange={(e) => setParcel({ ...parcel, description: e.target.value })} />
-            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Contents" required>
+                <select
+                  className={inputClass}
+                  required
+                  value={parcel.description}
+                  onChange={(e) => setParcel({ ...parcel, description: e.target.value })}
+                >
+                  <option value="">Select what is in the parcel</option>
+                  {PARCEL_CONTENT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.value}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            {parcel.description === "Other" ? (
+              <div className="sm:col-span-2">
+                <Field label="Describe contents" required>
+                  <input
+                    className={inputClass}
+                    type="text"
+                    autoComplete="off"
+                    required
+                    placeholder="What is inside?"
+                    value={parcel.customDescription}
+                    onChange={(e) => setParcel({ ...parcel, customDescription: e.target.value })}
+                  />
+                </Field>
+              </div>
+            ) : null}
             <Field label="Declared value (USD)" required>
               <input
                 className={inputClass}

@@ -66,7 +66,7 @@ describe("easyship address mapping", () => {
     });
 
     const body = JSON.parse((fetchImpl.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.origin_address.company_name).toBe("Alex Shipper");
-    expect(body.destination_address.company_name).toBe("Jordan Receiver");
+    expect(body.origin_address.company_name).toBe("Liora");
+    expect(body.destination_address.company_name).toBe("Liora");
   });
 });

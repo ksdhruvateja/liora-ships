@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_COMPANY_NAME } from "./parcel-contents";
 
 export const addressSchema = z.object({
   line1: z.string().min(1),
@@ -10,7 +11,11 @@ export const addressSchema = z.object({
   contactName: z.string().min(1),
   contactPhone: z.string().min(5),
   contactEmail: z.string().email(),
-  companyName: z.string().optional().default(""),
+  companyName: z
+    .string()
+    .optional()
+    .default("")
+    .transform((value) => value.trim() || DEFAULT_COMPANY_NAME),
 });
 
 export const parcelSchema = z.object({
