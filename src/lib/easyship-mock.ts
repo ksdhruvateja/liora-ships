@@ -6,9 +6,9 @@ export function createMockEasyshipClient(): EasyshipClient {
       return [
         {
           courierServiceId: "mock-ground",
-          courierName: "Standard",
-          umbrellaName: "Ground",
-          serviceName: "Standard",
+          courierName: "UPS Ground",
+          umbrellaName: "UPS",
+          serviceName: "Ground",
           totalCharge: 8.5,
           currency: "USD",
           minDeliveryTime: 5,
@@ -16,9 +16,9 @@ export function createMockEasyshipClient(): EasyshipClient {
         },
         {
           courierServiceId: "mock-express",
-          courierName: "Express",
-          umbrellaName: "Express",
-          serviceName: "Express",
+          courierName: "FedEx 2Day",
+          umbrellaName: "FedEx",
+          serviceName: "2Day",
           totalCharge: 14.2,
           currency: "USD",
           minDeliveryTime: 2,
@@ -26,9 +26,9 @@ export function createMockEasyshipClient(): EasyshipClient {
         },
         {
           courierServiceId: "mock-overnight",
-          courierName: "Overnight",
-          umbrellaName: "Priority",
-          serviceName: "Overnight",
+          courierName: "USPS Priority Mail Express",
+          umbrellaName: "USPS",
+          serviceName: "Priority Mail Express",
           totalCharge: 28,
           currency: "USD",
           minDeliveryTime: 1,

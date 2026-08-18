@@ -4,10 +4,8 @@ import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-
 import { loadStripe } from "@stripe/stripe-js";
 import { useEffect, useMemo, useState } from "react";
 import { formatMoney } from "@/lib/money";
+import { splitDisplayCourierName } from "@/lib/courier-names";
 import { MotionButton } from "@/components/motion/Pressable";
-
-const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
-const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
 function PayForm({
   shipmentId,
@@ -47,11 +45,17 @@ function PayForm({
     }
   }
 
+  const { label, carrier } = splitDisplayCourierName(courierName);
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="rounded-2xl bg-paper p-5">
         <p className="text-sm text-muted">Service</p>
-        <p className="font-semibold">{courierName}</p>
+        {label ? <p className="eyebrow mt-1">{label}</p> : null}
+        <p className="font-semibold">
+          {label && !carrier.toLowerCase().includes(label.toLowerCase())
+            ? `${label} ${carrier}`
+            : carrier}
+        </p>
         <p className="mt-2 text-3xl font-extrabold">{formatMoney(amountCents, currency)}</p>
       </div>
       <PaymentElement />
@@ -68,12 +72,21 @@ function PayForm({
   );
 }
 
-export function CheckoutForm({ shipmentId }: { shipmentId: string }) {
+export function CheckoutForm({
+  shipmentId,
+  publishableKey: publishableKeyFromServer = "",
+}: {
+  shipmentId: string;
+  publishableKey?: string;
+}) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [mock, setMock] = useState(false);
   const [meta, setMeta] = useState<{ courierName: string; amountCents: number; currency: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [publishableKey, setPublishableKey] = useState(
+    publishableKeyFromServer || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "",
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -88,6 +101,9 @@ export function CheckoutForm({ shipmentId }: { shipmentId: string }) {
         if (!cancelled) {
           setMock(Boolean(data.mock));
           setClientSecret(data.clientSecret ?? null);
+          if (typeof data.publishableKey === "string" && data.publishableKey) {
+            setPublishableKey(data.publishableKey);
+          }
           setMeta({
             courierName: data.courierName,
             amountCents: data.amountCents,
@@ -138,6 +154,11 @@ export function CheckoutForm({ shipmentId }: { shipmentId: string }) {
     [clientSecret],
   );
 
+  const stripePromise = useMemo(
+    () => (publishableKey ? loadStripe(publishableKey) : null),
+    [publishableKey],
+  );
+
   if (error) {
     return <p className="rounded-2xl bg-red-50 p-4 text-red-800">{error}</p>;
   }
@@ -150,7 +171,17 @@ export function CheckoutForm({ shipmentId }: { shipmentId: string }) {
       <div className="space-y-6">
         <div className="rounded-2xl bg-paper p-5">
           <p className="text-sm text-muted">Local demo checkout</p>
-          <p className="font-semibold">{meta.courierName}</p>
+          {splitDisplayCourierName(meta.courierName).label ? (
+            <p className="eyebrow mt-1">{splitDisplayCourierName(meta.courierName).label}</p>
+          ) : null}
+          <p className="font-semibold">
+            {(() => {
+              const { label, carrier } = splitDisplayCourierName(meta.courierName);
+              return label && !carrier.toLowerCase().includes(label.toLowerCase())
+                ? `${label} ${carrier}`
+                : carrier;
+            })()}
+          </p>
           <p className="mt-2 text-3xl font-extrabold">{formatMoney(meta.amountCents, meta.currency)}</p>
         </div>
         {error ? <p className="text-sm text-red-700">{error}</p> : null}

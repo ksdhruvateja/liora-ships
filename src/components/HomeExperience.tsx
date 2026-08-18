@@ -31,7 +31,7 @@ const fadeUp = {
 const inView = {
   initial: { opacity: 0, y: 24 },
   whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, amount: 0.2, margin: "-80px" },
+  viewport: { once: true, amount: "some" as const, margin: "0px" },
   transition: easeOut,
 };
 
@@ -195,16 +195,18 @@ export function HomeExperience() {
         <TrackForm />
       </motion.section>
 
-      <motion.section id="quote" {...inView}>
-        <p className="eyebrow">Get a quote</p>
-        <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Ship with Liora Labs</h2>
-        <p className="mt-3 max-w-xl text-muted">
-          Fill in every field yourself. Required fields are marked *. Labels once fetched cannot be returned.
-        </p>
+      <section id="quote" className="scroll-mt-24">
+        <motion.div {...inView}>
+          <p className="eyebrow">Get a quote</p>
+          <h2 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Ship with Liora Labs</h2>
+          <p className="mt-3 max-w-xl text-muted">
+            Fill in every field yourself. Required fields are marked *. Labels once fetched cannot be returned.
+          </p>
+        </motion.div>
         <div className="mt-8">
           <QuoteForm />
         </div>
-      </motion.section>
+      </section>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { formatMoney } from "@/lib/money";
+import { splitDisplayCourierName } from "@/lib/courier-names";
 import { MotionButton } from "@/components/motion/Pressable";
 
 type Address = {
@@ -94,7 +95,7 @@ function AddressFields({
   hideEmail?: boolean;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
       <Field label="Contact name" required>
         <input
           className={inputClass}
@@ -365,8 +366,8 @@ export function QuoteForm() {
           </div>
         </section>
 
-        <div className="grid items-start gap-6 lg:grid-cols-2">
-          <section className="surface p-5 sm:p-6">
+        <div className="grid w-full grid-cols-1 items-start gap-6 lg:grid-cols-2">
+          <section className="surface min-w-0 w-full overflow-visible p-5 sm:p-6">
             <h2 className="text-2xl font-extrabold tracking-tight">From</h2>
             <p className="mt-1 text-sm text-muted">Type the sender details, or pick a saved address after you have shipped once.</p>
             <div className="mt-3">
@@ -384,7 +385,7 @@ export function QuoteForm() {
               />
             </div>
           </section>
-          <section className="surface p-5 sm:p-6">
+          <section className="surface min-w-0 w-full overflow-visible p-5 sm:p-6">
             <h2 className="text-2xl font-extrabold tracking-tight">To</h2>
             <p className="mt-1 text-sm text-muted">Type the recipient details, or pick a saved address after you have shipped once.</p>
             <div className="mt-3">
@@ -478,6 +479,7 @@ export function QuoteForm() {
           <div className="mt-4 space-y-3">
             {rates.map((rate) => {
               const active = rate.shipmentId === selectedId;
+              const { label, carrier } = splitDisplayCourierName(rate.courierName);
               return (
                 <motion.button
                   key={rate.shipmentId}
@@ -497,8 +499,13 @@ export function QuoteForm() {
                   ) : (
                     <span className="absolute inset-0 rounded-2xl border border-ink/10" />
                   )}
-                  <span className="relative">
-                    <span className="block font-semibold">{rate.courierName}</span>
+                  <span className="relative pr-3">
+                    {label ? <span className="eyebrow">{label}</span> : null}
+                    <span className={label ? "mt-1 block font-semibold" : "block font-semibold"}>
+                      {label && !carrier.toLowerCase().includes(label.toLowerCase())
+                        ? `${label} ${carrier}`
+                        : carrier}
+                    </span>
                     <span className="text-sm text-muted">{rate.estimatedDelivery}</span>
                   </span>
                   <span className="relative text-xl font-extrabold sm:text-2xl">

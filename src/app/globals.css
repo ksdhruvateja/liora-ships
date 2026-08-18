@@ -8,6 +8,14 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
+}
+
+#quote,
+#services,
+#how,
+#track {
+  scroll-margin-top: 6rem;
 }
 
 html,

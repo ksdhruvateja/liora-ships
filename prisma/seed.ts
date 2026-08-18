@@ -2,30 +2,22 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function carrierDisplayName(easyshipName: string, brandedName: string) {
+  const raw = (easyshipName || brandedName).trim();
+  return raw
+    .replace(/^Liora Choice\s*[·\-–:]\s*/i, "")
+    .replace(/^Liora\s+(Saver|Ground|Express|Priority|Overnight|Economy|Shipping)\b\s*[·\-–:]?\s*/i, "")
+    .trim() || raw || "Shipping";
+}
+
 async function main() {
   await prisma.courierBrandMap.deleteMany();
 
-  const maps = [
-    { matchType: "NAME_CONTAINS", matchValue: "overnight", displayName: "Liora Overnight", sortOrder: 10 },
-    { matchType: "NAME_CONTAINS", matchValue: "next day", displayName: "Liora Overnight", sortOrder: 20 },
-    { matchType: "NAME_CONTAINS", matchValue: "priority", displayName: "Liora Priority", sortOrder: 30 },
-    { matchType: "NAME_CONTAINS", matchValue: "express", displayName: "Liora Express", sortOrder: 40 },
-    { matchType: "NAME_CONTAINS", matchValue: "expedited", displayName: "Liora Express", sortOrder: 50 },
-    { matchType: "NAME_CONTAINS", matchValue: "saver", displayName: "Liora Saver", sortOrder: 60 },
-    { matchType: "NAME_CONTAINS", matchValue: "economy", displayName: "Liora Economy", sortOrder: 70 },
-    { matchType: "NAME_CONTAINS", matchValue: "ground", displayName: "Liora Ground", sortOrder: 80 },
-    { matchType: "NAME_CONTAINS", matchValue: "standard", displayName: "Liora Ground", sortOrder: 90 },
-  ];
-
-  await prisma.courierBrandMap.createMany({ data: maps });
-
   const shipments = await prisma.shipment.findMany({
-    select: { id: true, brandedCourierName: true },
+    select: { id: true, brandedCourierName: true, easyshipCourierName: true },
   });
   for (const shipment of shipments) {
-    const next = shipment.brandedCourierName
-      .replaceAll("Forez Ships", "Liora")
-      .replaceAll("Forezships", "Liora");
+    const next = carrierDisplayName(shipment.easyshipCourierName, shipment.brandedCourierName);
     if (next !== shipment.brandedCourierName) {
       await prisma.shipment.update({
         where: { id: shipment.id },

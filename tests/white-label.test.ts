@@ -15,7 +15,7 @@ function shipment(): Shipment {
     selectedCourierId: "easyship-courier-id-should-not-leak",
     easyshipRateId: "easyship-rate-id-should-not-leak",
     easyshipCourierName: "UPS - Express",
-    brandedCourierName: "Liora Express",
+    brandedCourierName: "UPS Express",
     currency: "USD",
     baseCostCents: 9999,
     markupCents: 2500,
@@ -43,7 +43,7 @@ describe("white-label public payloads", () => {
     expect(json).not.toContain("baseCost");
     expect(json).not.toContain("ESHK000HIDDEN");
     expect(json).not.toContain("easyship-courier-id-should-not-leak");
-    expect(pub.courierName).toBe("Liora Express");
+    expect(pub.courierName).toBe("UPS Express");
     expect(pub.labelDownloadUrl).toContain("/api/shipments/ship_public/label");
     expect(pub.trackingUrl).toContain("/track/1ZFOREZ");
     expect(pub.notifyEmail).toBe("zippyyycare@gmail.com");
@@ -55,32 +55,54 @@ describe("white-label public payloads", () => {
     expect(json).not.toMatch(/easyship/i);
     expect(rate).toEqual({
       shipmentId: "ship_public",
-      courierName: "Liora Express",
+      courierName: "UPS Express",
       estimatedDelivery: "2–4 business days",
       customerTotalCents: 12499,
       currency: "USD",
     });
   });
 
-  it("maps generic courier names onto the brand table", () => {
-    const name = brandCourierName(
-      [
-        {
-          matchType: "NAME_CONTAINS",
-          matchValue: "express",
-          displayName: "Liora Express",
-          sortOrder: 1,
-          active: true,
-        },
-      ],
-      {
-        courierServiceId: "abc",
-        courierName: "DHL Express Worldwide",
-        umbrellaName: "DHL",
-        serviceName: "Express",
-      },
-    );
-    expect(name).toBe("Liora Express");
-    expect(name.toLowerCase()).not.toContain("dhl");
+  it("shows the carrier company and method, not a Liora name", () => {
+    const upsGround = brandCourierName([], {
+      courierServiceId: "abc",
+      courierName: "UPS Ground",
+      umbrellaName: "UPS",
+      serviceName: "Ground",
+    });
+    expect(upsGround).toBe("UPS Ground");
+
+    const fedex = brandCourierName([], {
+      courierServiceId: "def",
+      courierName: "FedEx 2Day",
+      umbrellaName: "FedEx",
+      serviceName: "2Day",
+    });
+    expect(fedex).toBe("FedEx 2Day");
+
+    const dhl = brandCourierName([], {
+      courierServiceId: "ghi",
+      courierName: "DHL Express Worldwide",
+      umbrellaName: "DHL",
+      serviceName: "Express",
+    });
+    expect(dhl).toBe("DHL Express Worldwide");
+    expect(dhl).toMatch(/DHL/i);
+    expect(dhl.toLowerCase()).not.toContain("liora");
+
+    const combined = brandCourierName([], {
+      courierServiceId: "jkl",
+      courierName: "Ground",
+      umbrellaName: "UPS",
+      serviceName: "Ground",
+    });
+    expect(combined).toBe("UPS Ground");
+
+    const fromLiora = brandCourierName([], {
+      courierServiceId: "mno",
+      courierName: "Liora Choice · FedEx Ground",
+      umbrellaName: "FedEx",
+      serviceName: "Ground",
+    });
+    expect(fromLiora).toBe("FedEx Ground");
   });
 });

@@ -18,9 +18,32 @@ function deriveDirectUrl(databaseUrl) {
 }
 
 if (!process.env.DATABASE_URL?.trim()) {
-  console.error(
-    "DATABASE_URL is missing. Add the Neon pooled connection string in Netlify → Environment variables.",
-  );
+  console.error(`
+DATABASE_URL is missing at build time.
+
+In Netlify go to:
+  Site configuration → Environment variables → Add a variable
+
+Add:
+  DATABASE_URL = your Neon pooled URL (the one with -pooler in the host)
+
+Scopes (must include Builds, or Prisma cannot migrate):
+  ✓ Production
+  ✓ Builds
+  ✓ Functions
+
+Same screen, also add (same scopes):
+  EASYSHIP_API_KEY
+  STRIPE_SECRET_KEY
+  STRIPE_WEBHOOK_SECRET
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  GMAIL_APP_PASSWORD
+  CRON_SECRET
+
+DIRECT_URL is optional — this script fills it from DATABASE_URL.
+Do not put these values in git or netlify.toml.
+Then trigger a new deploy.
+`);
   process.exit(1);
 }
 

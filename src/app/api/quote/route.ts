@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getConfig, getEnvMarkupRule } from "@/lib/config";
 import { getEasyship } from "@/lib/easyship-client";
 import { applyMarkup } from "@/lib/markup";
-import { brandCourierName, formatEstimatedDelivery } from "@/lib/courier-names";
+import { brandCourierName, formatCarrierServiceName, formatEstimatedDelivery } from "@/lib/courier-names";
 import { quoteRequestSchema } from "@/lib/validations";
 import { toPublicQuoteRate } from "@/lib/public-shipment";
 
@@ -34,7 +34,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const maps = await prisma.courierBrandMap.findMany({ where: { active: true } });
     const markupRule = getEnvMarkupRule();
 
     const quoteGroupId = randomUUID();
@@ -44,7 +43,12 @@ export async function POST(request: Request) {
       rates.map((rate) => {
         const baseCostCents = Math.round(rate.totalCharge * 100);
         const { markupCents, customerTotalCents } = applyMarkup(baseCostCents, markupRule);
-        const brandedCourierName = brandCourierName(maps, {
+        const carrierName = formatCarrierServiceName({
+          courierName: rate.courierName,
+          umbrellaName: rate.umbrellaName,
+          serviceName: rate.serviceName,
+        });
+        const brandedCourierName = brandCourierName(null, {
           courierServiceId: rate.courierServiceId,
           courierName: rate.courierName,
           umbrellaName: rate.umbrellaName,
@@ -60,7 +64,7 @@ export async function POST(request: Request) {
             parcel,
             selectedCourierId: rate.courierServiceId,
             easyshipRateId: rate.courierServiceId,
-            easyshipCourierName: rate.courierName,
+            easyshipCourierName: carrierName,
             brandedCourierName,
             currency: rate.currency || "USD",
             baseCostCents,

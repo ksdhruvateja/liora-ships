@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
+import { splitDisplayCourierName } from "@/lib/courier-names";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -17,12 +18,18 @@ export default async function TrackPage({
   });
   if (!shipment) notFound();
 
+  const { label, carrier } = splitDisplayCourierName(shipment.brandedCourierName);
+
   return (
     <div className="surface mx-auto max-w-2xl p-6 sm:p-8">
       <p className="eyebrow">{config.appName} tracking</p>
       <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">{shipment.trackingNumber}</h1>
       <p className="mt-3 text-muted">
-        Service: <strong className="text-ink">{shipment.brandedCourierName}</strong>
+        Service: <strong className="text-ink">
+          {label && !carrier.toLowerCase().includes(label.toLowerCase())
+            ? `${label} ${carrier}`
+            : carrier || label}
+        </strong>
       </p>
       <p className="mt-2 text-muted">
         Status: label created. Scan updates from the carrier will appear on this {config.appName} page as they

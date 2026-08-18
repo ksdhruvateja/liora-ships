@@ -41,6 +41,8 @@ export async function POST(request: Request) {
 
     const stripe = getStripe();
 
+    const publishableKey = config.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
+
     if (config.mockMode) {
       return NextResponse.json({
         mock: true,
@@ -48,6 +50,7 @@ export async function POST(request: Request) {
         amountCents: shipment.customerTotalCents,
         currency: shipment.currency,
         courierName: shipment.brandedCourierName,
+        publishableKey,
       });
     }
 
@@ -65,6 +68,7 @@ export async function POST(request: Request) {
           amountCents: shipment.customerTotalCents,
           currency: shipment.currency,
           courierName: shipment.brandedCourierName,
+          publishableKey,
         });
       }
     }
@@ -96,6 +100,7 @@ export async function POST(request: Request) {
       amountCents: shipment.customerTotalCents,
       currency: shipment.currency,
       courierName: shipment.brandedCourierName,
+      publishableKey,
     });
   } catch (error) {
     console.error("Checkout failed", error);

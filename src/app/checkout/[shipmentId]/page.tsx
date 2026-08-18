@@ -12,7 +12,10 @@ export default function CheckoutPage({ params }: { params: { shipmentId: string 
         <strong>No returns.</strong> Labels once fetched cannot be returned, cancelled, or refunded.
       </p>
       <div className="surface p-5 sm:p-6">
-        <CheckoutForm shipmentId={params.shipmentId} />
+        <CheckoutForm
+          shipmentId={params.shipmentId}
+          publishableKey={process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""}
+        />
       </div>
     </div>
   );

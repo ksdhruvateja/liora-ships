@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatMoney } from "@/lib/money";
+import { splitDisplayCourierName } from "@/lib/courier-names";
 import type { PublicShipment } from "@/lib/public-shipment";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Liora Labs Shipping";
@@ -63,6 +64,7 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
   }
 
   if (shipment.status === "LABEL_CREATED") {
+    const { label, carrier } = splitDisplayCourierName(shipment.courierName);
     return (
       <div className="surface mx-auto max-w-2xl p-6 sm:p-8">
         <p className="eyebrow">Label ready</p>
@@ -75,7 +77,12 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <div>
             <dt className="text-sm text-muted">Service</dt>
-            <dd className="font-semibold">{shipment.courierName}</dd>
+            <dd className="font-semibold">
+              {label ? <span className="eyebrow block">{label}</span> : null}
+              {label && !carrier.toLowerCase().includes(label.toLowerCase())
+                ? `${label} ${carrier}`
+                : carrier}
+            </dd>
           </div>
           <div>
             <dt className="text-sm text-muted">Total paid</dt>
