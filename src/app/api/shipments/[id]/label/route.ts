@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Shipment } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getEasyship } from "@/lib/easyship-client";
@@ -9,12 +10,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 26;
 
-async function refreshMissingLabelUrl(shipment: {
-  id: string;
-  easyshipShipmentId: string | null;
-  labelUrl: string | null;
-  trackingNumber: string | null;
-}) {
+async function refreshMissingLabelUrl(shipment: Shipment): Promise<Shipment> {
   if (shipment.labelUrl || !shipment.easyshipShipmentId) return shipment;
   const purchased = await getEasyship().refreshPurchasedLabel(shipment.easyshipShipmentId);
   if (!purchased.labelUrl) return shipment;
