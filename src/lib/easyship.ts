@@ -58,6 +58,7 @@ export type EasyshipClient = {
     customerEmail: string;
     platformOrderNumber: string;
   }) => Promise<PurchasedLabel>;
+  refreshPurchasedLabel: (easyshipShipmentId: string) => Promise<PurchasedLabel>;
 };
 
 function toEasyshipAddress(address: AddressInput) {
@@ -127,7 +128,7 @@ function labelShippingSettings(parcel: ParcelInput) {
     buy_label: true,
     buy_label_synchronous: true,
     printing_options: {
-      format: "pdf",
+      format: "url",
       label: "4x6",
       commercial_invoice: "A4",
       packing_slip: "4x6",
@@ -167,27 +168,52 @@ function mapRate(raw: EasyshipRateRaw): EasyshipRate | null {
   };
 }
 
-function extractLabel(shipment: Record<string, unknown>): PurchasedLabel {
+function trackingFromShipment(shipment: Record<string, unknown>): string | null {
+  const trackings = shipment.trackings as Array<{ tracking_number?: string }> | undefined;
+  const fromList = trackings?.find((row) => row.tracking_number)?.tracking_number;
+  if (fromList) return fromList;
+  if (typeof shipment.tracking_number === "string" && shipment.tracking_number) {
+    return shipment.tracking_number;
+  }
+  const courier = shipment.courier as { tracking_number?: string } | undefined;
+  return courier?.tracking_number || null;
+}
+
+function documentHref(doc: Record<string, unknown>): string | null {
+  if (typeof doc.url === "string" && doc.url.trim()) return doc.url.trim();
+  if (typeof doc.label_url === "string" && doc.label_url.trim()) return doc.label_url.trim();
+  const encoded = doc.base64_encoded_strings;
+  if (Array.isArray(encoded) && typeof encoded[0] === "string" && encoded[0]) {
+    const mime = typeof doc.mime_type === "string" && doc.mime_type ? doc.mime_type : "application/pdf";
+    return `data:${mime};base64,${encoded[0]}`;
+  }
+  return null;
+}
+
+export function extractLabel(shipment: Record<string, unknown>): PurchasedLabel {
   const easyshipShipmentId = String(
     shipment.easyship_shipment_id ?? shipment.id ?? "",
   );
-  const tracking =
-    (shipment.trackings as { tracking_number?: string }[] | undefined)?.[0]
-      ?.tracking_number ??
-    (typeof shipment.tracking_number === "string"
-      ? shipment.tracking_number
-      : null);
-
-  const documents = (shipment.shipping_documents as
-    | { category?: string; url?: string }[]
-    | undefined) ?? [];
+  const documents = (
+    (shipment.shipping_documents as Record<string, unknown>[] | undefined) ??
+    (shipment.documents as Record<string, unknown>[] | undefined) ??
+    []
+  );
   const labelDoc =
-    documents.find((doc) => doc.category === "label") ?? documents[0];
+    documents.find((doc) => doc.category === "label" || doc.type === "label") ??
+    documents.find((doc) => documentHref(doc)) ??
+    documents[0];
+  const directUrl =
+    (typeof shipment.label_url === "string" && shipment.label_url) ||
+    (typeof shipment.label_state === "string" && shipment.label_state.startsWith("http")
+      ? shipment.label_state
+      : "") ||
+    null;
 
   return {
     easyshipShipmentId,
-    labelUrl: labelDoc?.url ?? null,
-    trackingNumber: tracking ?? null,
+    labelUrl: (labelDoc ? documentHref(labelDoc) : null) || directUrl,
+    trackingNumber: trackingFromShipment(shipment),
   };
 }
 
@@ -208,8 +234,8 @@ export function createEasyshipClient(options: {
         signal: controller.signal,
         headers: {
           Authorization: `Bearer ${options.apiKey}`,
-          "Content-Type": "application/json",
           Accept: "application/json",
+          ...(init.method && init.method !== "GET" ? { "Content-Type": "application/json" } : {}),
           ...(init.headers ?? {}),
         },
       });
@@ -232,6 +258,56 @@ export function createEasyshipClient(options: {
     } finally {
       clearTimeout(timer);
     }
+  }
+
+  async function readShipment(easyshipShipmentId: string) {
+    const body = await easyshipFetch<{ shipment?: Record<string, unknown> }>(
+      `/shipments/${encodeURIComponent(easyshipShipmentId)}?format=url&label=4x6`,
+      { method: "GET" },
+    );
+    const shipment = body.shipment ?? (body as Record<string, unknown>);
+    const label = extractLabel(shipment);
+    if (!label.easyshipShipmentId) label.easyshipShipmentId = easyshipShipmentId;
+    return label;
+  }
+
+  async function requestLabel(easyshipShipmentId: string, courierServiceId?: string) {
+    const labeled = await easyshipFetch<{ shipment?: Record<string, unknown> }>(
+      `/shipments/${encodeURIComponent(easyshipShipmentId)}/labels`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          ...(courierServiceId ? { courier_service_id: courierServiceId } : {}),
+          printing_options: {
+            format: "url",
+            label: "4x6",
+          },
+        }),
+      },
+    );
+    const label = extractLabel(labeled.shipment ?? (labeled as Record<string, unknown>));
+    if (!label.easyshipShipmentId) label.easyshipShipmentId = easyshipShipmentId;
+    return label;
+  }
+
+  async function waitForPurchasedLabel(
+    easyshipShipmentId: string,
+    courierServiceId?: string,
+  ) {
+    let latest = await readShipment(easyshipShipmentId);
+    if (latest.labelUrl) return latest;
+    try {
+      latest = await requestLabel(easyshipShipmentId, courierServiceId);
+      if (latest.labelUrl) return latest;
+    } catch {
+      // Label may already have been purchased; keep polling the shipment.
+    }
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      latest = await readShipment(easyshipShipmentId);
+      if (latest.labelUrl) return latest;
+    }
+    return latest;
   }
 
   return {
@@ -291,36 +367,17 @@ export function createEasyshipClient(options: {
 
       const shipment = created.shipment ?? {};
       let label = extractLabel(shipment);
-
-      if (!label.labelUrl || !label.trackingNumber) {
-        const shipmentId =
-          label.easyshipShipmentId || String(shipment.easyship_shipment_id ?? "");
-        if (shipmentId) {
-          try {
-            const labeled = await easyshipFetch<{
-              shipment?: Record<string, unknown>;
-            }>(`/shipments/${encodeURIComponent(shipmentId)}/labels`, {
-              method: "POST",
-              body: JSON.stringify({
-                courier_service_id: courierServiceId,
-                printing_options: {
-                  format: "pdf",
-                  label: "4x6",
-                },
-              }),
-            });
-            label = extractLabel(labeled.shipment ?? labeled as Record<string, unknown>);
-            if (!label.easyshipShipmentId) label.easyshipShipmentId = shipmentId;
-          } catch {
-            // Synchronous label endpoint is beta; shipment create with buy_label may already suffice.
-          }
-        }
-      }
-
       if (!label.easyshipShipmentId) {
         throw new Error("Label purchase did not return a shipment id");
       }
+      if (!label.labelUrl) {
+        label = await waitForPurchasedLabel(label.easyshipShipmentId, courierServiceId);
+      }
       return label;
+    },
+
+    async refreshPurchasedLabel(easyshipShipmentId) {
+      return waitForPurchasedLabel(easyshipShipmentId);
     },
   };
 }

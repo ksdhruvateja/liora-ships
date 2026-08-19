@@ -107,16 +107,30 @@ export async function purchaseLabelForShipment(
       throw new Error(`Shipment ${shipmentId} not found`);
     }
     if (existing.status === "LABEL_CREATED") {
+      let ready = existing;
+      if (!ready.labelUrl && ready.easyshipShipmentId && easyship.refreshPurchasedLabel) {
+        const purchased = await easyship.refreshPurchasedLabel(ready.easyshipShipmentId);
+        if (purchased.labelUrl) {
+          ready = await prisma.shipment.update({
+            where: { id: shipmentId },
+            data: {
+              labelUrl: purchased.labelUrl,
+              trackingNumber: purchased.trackingNumber ?? ready.trackingNumber,
+              lastError: null,
+            },
+          });
+        }
+      }
       try {
         await rememberShippedContacts({
-          customerEmail: existing.customerEmail,
-          originAddress: existing.originAddress,
-          destAddress: existing.destAddress,
+          customerEmail: ready.customerEmail,
+          originAddress: ready.originAddress,
+          destAddress: ready.destAddress,
         });
       } catch (error) {
         console.error("Could not save shipped contacts", error);
       }
-      return ensureLabelEmailSent(existing, deps);
+      return ensureLabelEmailSent(ready, deps);
     }
     if (existing.status === "REFUNDED") {
       throw new Error(`Shipment ${shipmentId} was refunded`);
@@ -138,14 +152,31 @@ export async function purchaseLabelForShipment(
       const destination = existing.destAddress as AddressInput;
       const parcel = existing.parcel as ParcelInput;
 
-      const purchased = await easyship.createShipmentAndBuyLabel({
-        origin,
-        destination,
-        parcel,
-        courierServiceId: existing.easyshipRateId,
-        customerEmail: existing.customerEmail,
-        platformOrderNumber: existing.id,
-      });
+      let purchased;
+      if (existing.easyshipShipmentId && easyship.refreshPurchasedLabel) {
+        purchased = await easyship.refreshPurchasedLabel(existing.easyshipShipmentId);
+      } else {
+        purchased = await easyship.createShipmentAndBuyLabel({
+          origin,
+          destination,
+          parcel,
+          courierServiceId: existing.easyshipRateId,
+          customerEmail: existing.customerEmail,
+          platformOrderNumber: existing.id,
+        });
+      }
+
+      if (purchased.easyshipShipmentId && !purchased.labelUrl) {
+        await prisma.shipment.update({
+          where: { id: shipmentId },
+          data: {
+            easyshipShipmentId: purchased.easyshipShipmentId,
+            trackingNumber: purchased.trackingNumber,
+            lastError: "Waiting for carrier label PDF",
+          },
+        });
+        throw new Error("Label PDF not ready yet");
+      }
 
       const updated = await prisma.shipment.update({
         where: { id: shipmentId },
@@ -171,7 +202,7 @@ export async function purchaseLabelForShipment(
       return ensureLabelEmailSent(updated, deps);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = /timed out|timeout|abort|504|502|503|network/i.test(message);
+      const retryable = /timed out|timeout|abort|504|502|503|network|not ready yet/i.test(message);
       const failedEnough = attempted.fulfillmentAttempts >= (retryable ? 6 : 4);
       await prisma.shipment.update({
         where: { id: shipmentId },

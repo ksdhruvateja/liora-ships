@@ -44,5 +44,12 @@ export function createMockEasyshipClient(): EasyshipClient {
         trackingNumber,
       };
     },
+    async refreshPurchasedLabel(easyshipShipmentId) {
+      return {
+        easyshipShipmentId,
+        labelUrl: `mock://label/${easyshipShipmentId}`,
+        trackingNumber: easyshipShipmentId.replace(/^MOCK-/, "FZ"),
+      };
+    },
   };
 }

@@ -1,17 +1,50 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
+import { getEasyship } from "@/lib/easyship-client";
+import { downloadLabelPdf } from "@/lib/label-file";
 import { buildMockLabelPdf } from "@/lib/mock-label-pdf";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 26;
+
+async function refreshMissingLabelUrl(shipment: {
+  id: string;
+  easyshipShipmentId: string | null;
+  labelUrl: string | null;
+  trackingNumber: string | null;
+}) {
+  if (shipment.labelUrl || !shipment.easyshipShipmentId) return shipment;
+  const purchased = await getEasyship().refreshPurchasedLabel(shipment.easyshipShipmentId);
+  if (!purchased.labelUrl) return shipment;
+  return prisma.shipment.update({
+    where: { id: shipment.id },
+    data: {
+      labelUrl: purchased.labelUrl,
+      trackingNumber: purchased.trackingNumber ?? shipment.trackingNumber,
+      lastError: null,
+    },
+  });
+}
 
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } },
 ) {
   const config = getConfig();
-  const shipment = await prisma.shipment.findUnique({ where: { id: params.id } });
-  if (!shipment || shipment.status !== "LABEL_CREATED" || !shipment.labelUrl) {
+  let shipment = await prisma.shipment.findUnique({ where: { id: params.id } });
+  if (!shipment || shipment.status !== "LABEL_CREATED") {
+    return NextResponse.json({ error: "Label is not available yet." }, { status: 404 });
+  }
+
+  try {
+    shipment = await refreshMissingLabelUrl(shipment);
+  } catch (error) {
+    console.error("Could not refresh label from carrier", error);
+  }
+
+  if (!shipment.labelUrl) {
     return NextResponse.json({ error: "Label is not available yet." }, { status: 404 });
   }
 
@@ -40,23 +73,18 @@ export async function GET(
     });
   }
 
-  const response = await fetch(shipment.labelUrl, {
-    headers: {
-      Authorization: `Bearer ${config.EASYSHIP_API_KEY}`,
-    },
-  });
-  if (!response.ok) {
+  const file = await downloadLabelPdf(shipment.labelUrl, config.EASYSHIP_API_KEY);
+  if (!file) {
     return NextResponse.json(
       { error: "The label file could not be retrieved." },
       { status: 502 },
     );
   }
 
-  const bytes = await response.arrayBuffer();
-  return new NextResponse(bytes, {
+  return new NextResponse(Buffer.from(file.bytes), {
     status: 200,
     headers: {
-      "Content-Type": response.headers.get("content-type") ?? "application/pdf",
+      "Content-Type": file.contentType,
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "private, max-age=300",
     },
