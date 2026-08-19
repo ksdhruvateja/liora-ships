@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { prisma } from "./db";
+import { normalizeUsState } from "./us-locations";
 import type { AddressInput } from "./validations";
 
 export type SavedContactRole = "ORIGIN" | "DESTINATION";
@@ -50,9 +51,9 @@ function asAddress(value: unknown): AddressInput | null {
     line1: String(row.line1),
     line2: String(row.line2 ?? ""),
     city: String(row.city),
-    state: String(row.state ?? ""),
+    state: normalizeUsState(String(row.state ?? "")),
     postalCode: String(row.postalCode ?? ""),
-    countryAlpha2: String(row.countryAlpha2 ?? "US").slice(0, 2).toUpperCase(),
+    countryAlpha2: "US",
     contactName: String(row.contactName),
     contactPhone: String(row.contactPhone ?? ""),
     contactEmail: String(row.contactEmail ?? ""),

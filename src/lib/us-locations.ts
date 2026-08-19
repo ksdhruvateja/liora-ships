@@ -57,10 +57,14 @@ export const US_STATES = [
   { name: "Wyoming", code: "WY" },
 ] as const;
 
-const STATE_BY_CODE = new Map(US_STATES.map((state) => [state.code, state]));
-const STATE_BY_NAME = new Map(US_STATES.map((state) => [state.name.toLowerCase(), state]));
+const STATE_BY_CODE = new Map<string, (typeof US_STATES)[number]>(
+  US_STATES.map((state) => [state.code, state]),
+);
+const STATE_BY_NAME = new Map<string, (typeof US_STATES)[number]>(
+  US_STATES.map((state) => [state.name.toLowerCase(), state]),
+);
 
-export function normalizeUsState(value: string) {
+export function normalizeUsState(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
   const byCode = STATE_BY_CODE.get(trimmed.toUpperCase());

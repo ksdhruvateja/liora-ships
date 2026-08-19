@@ -9,7 +9,7 @@ export const addressSchema = z.object({
   state: z
     .string()
     .min(1)
-    .transform((value) => normalizeUsState(value))
+    .transform((value): string => normalizeUsState(value))
     .refine((value) => isUsState(value), "Select a US state"),
   postalCode: z
     .string()
@@ -18,7 +18,7 @@ export const addressSchema = z.object({
   countryAlpha2: z
     .string()
     .trim()
-    .transform((value) => (isUsCountry(value) ? "US" : value.toUpperCase()))
+    .transform((value): string => (isUsCountry(value) ? "US" : value.toUpperCase()))
     .refine((value) => value === "US", "Shipping is limited to the United States"),
   contactName: z.string().min(1),
   contactPhone: z.string().min(5),
