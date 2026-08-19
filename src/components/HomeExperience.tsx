@@ -164,7 +164,7 @@ export function HomeExperience() {
 
       <section id="how" className="grid gap-4 sm:grid-cols-3">
         {[
-          ["01", "Enter the shipment", "From, to, and parcel size. Saved addresses appear after you ship once."],
+          ["01", "Enter the shipment", "US from and to addresses, plus parcel size. Saved addresses appear after you ship once."],
           ["02", "Pick a rate and pay", "Choose a Liora service and complete Stripe checkout."],
           ["03", "Print the label", "The PDF and tracking number land on your confirmation page."],
         ].map(([step, title, copy], index) => (

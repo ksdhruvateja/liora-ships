@@ -11,6 +11,7 @@ import {
   companyNameOrDefault,
   parcelCategoryForContents,
 } from "@/lib/parcel-contents";
+import { US_COUNTRY, US_STATES, normalizeUsState } from "@/lib/us-locations";
 import { MotionButton } from "@/components/motion/Pressable";
 
 type Address = {
@@ -59,7 +60,7 @@ const emptyAddress = (email = ""): Address => ({
   city: "",
   state: "",
   postalCode: "",
-  countryAlpha2: "",
+  countryAlpha2: US_COUNTRY.alpha2,
   contactName: "",
   contactPhone: "",
   contactEmail: email,
@@ -174,37 +175,45 @@ function AddressFields({
           required
         />
       </Field>
-      <Field label="State / region" required>
-        <input
+      <Field label="State" required>
+        <select
           className={inputClass}
-          type="text"
-          autoComplete="off"
+          required
           value={value.state}
           onChange={(e) => onChange("state", e.target.value)}
-          required
-        />
+        >
+          <option value="">Select a state</option>
+          {US_STATES.map((state) => (
+            <option key={state.code} value={state.code}>
+              {state.name}
+            </option>
+          ))}
+        </select>
       </Field>
-      <Field label="Postal code" required>
+      <Field label="ZIP code" required>
         <input
           className={inputClass}
           type="text"
+          inputMode="numeric"
           autoComplete="off"
+          placeholder="94105"
+          maxLength={10}
+          pattern="\d{5}(-\d{4})?"
+          title="5-digit US ZIP code"
           value={value.postalCode}
           onChange={(e) => onChange("postalCode", e.target.value)}
           required
         />
       </Field>
-      <Field label="Country (2-letter code)" required>
-        <input
+      <Field label="Country" required>
+        <select
           className={inputClass}
-          type="text"
-          autoComplete="off"
-          maxLength={2}
-          placeholder="US"
-          value={value.countryAlpha2}
-          onChange={(e) => onChange("countryAlpha2", e.target.value.toUpperCase())}
           required
-        />
+          value={US_COUNTRY.alpha2}
+          onChange={() => onChange("countryAlpha2", US_COUNTRY.alpha2)}
+        >
+          <option value={US_COUNTRY.alpha2}>{US_COUNTRY.name}</option>
+        </select>
       </Field>
     </div>
   );
@@ -303,6 +312,8 @@ export function QuoteForm() {
       ...contact.address,
       line2: contact.address.line2 ?? "",
       companyName: contact.address.companyName ?? "",
+      state: normalizeUsState(contact.address.state ?? ""),
+      countryAlpha2: US_COUNTRY.alpha2,
     };
     if (role === "ORIGIN") {
       setOriginSavedId(id);
@@ -331,11 +342,15 @@ export function QuoteForm() {
         ...origin,
         contactEmail: customerEmail || origin.contactEmail,
         companyName: companyNameOrDefault(origin.companyName),
+        state: normalizeUsState(origin.state),
+        countryAlpha2: US_COUNTRY.alpha2,
       };
       const destPayload = {
         ...destination,
         contactEmail: destination.contactEmail || customerEmail,
         companyName: companyNameOrDefault(destination.companyName),
+        state: normalizeUsState(destination.state),
+        countryAlpha2: US_COUNTRY.alpha2,
       };
       const response = await fetch("/api/quote", {
         method: "POST",
@@ -393,7 +408,7 @@ export function QuoteForm() {
         <div className="grid w-full grid-cols-1 items-start gap-6 lg:grid-cols-2">
           <section className="surface min-w-0 w-full overflow-visible p-5 sm:p-6">
             <h2 className="text-2xl font-extrabold tracking-tight">From</h2>
-            <p className="mt-1 text-sm text-muted">Type the sender details, or pick a saved address after you have shipped once.</p>
+            <p className="mt-1 text-sm text-muted">US addresses only. Pick a state from the list, or use a saved address after you have shipped once.</p>
             <div className="mt-3">
               <SavedAddressPicker
                 contacts={originSaved}
@@ -411,7 +426,7 @@ export function QuoteForm() {
           </section>
           <section className="surface min-w-0 w-full overflow-visible p-5 sm:p-6">
             <h2 className="text-2xl font-extrabold tracking-tight">To</h2>
-            <p className="mt-1 text-sm text-muted">Type the recipient details, or pick a saved address after you have shipped once.</p>
+            <p className="mt-1 text-sm text-muted">US addresses only. Pick a state from the list, or use a saved address after you have shipped once.</p>
             <div className="mt-3">
               <SavedAddressPicker
                 contacts={destSaved}

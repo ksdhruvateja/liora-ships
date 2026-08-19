@@ -33,4 +33,12 @@ describe("quote defaults", () => {
     expect(parcelCategoryForContents("Electronics")).toBe("electronics");
     expect(parcelCategoryForContents("Other")).toBe("merchandise");
   });
+
+  it("accepts US states by name or code and only the United States", () => {
+    expect(addressSchema.parse({ ...address, state: "California" }).state).toBe("CA");
+    expect(addressSchema.parse({ ...address, countryAlpha2: "USA" }).countryAlpha2).toBe("US");
+    expect(() => addressSchema.parse({ ...address, countryAlpha2: "GB" })).toThrow();
+    expect(() => addressSchema.parse({ ...address, state: "Ontario" })).toThrow();
+    expect(() => addressSchema.parse({ ...address, postalCode: "M5V 2T6" })).toThrow();
+  });
 });

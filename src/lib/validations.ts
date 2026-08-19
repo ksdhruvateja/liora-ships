@@ -1,13 +1,25 @@
 import { z } from "zod";
 import { DEFAULT_COMPANY_NAME } from "./parcel-contents";
+import { isUsCountry, isUsState, normalizeUsState } from "./us-locations";
 
 export const addressSchema = z.object({
   line1: z.string().min(1),
   line2: z.string().optional().default(""),
   city: z.string().min(1),
-  state: z.string().min(1),
-  postalCode: z.string().min(1),
-  countryAlpha2: z.string().length(2).transform((v) => v.toUpperCase()),
+  state: z
+    .string()
+    .min(1)
+    .transform((value) => normalizeUsState(value))
+    .refine((value) => isUsState(value), "Select a US state"),
+  postalCode: z
+    .string()
+    .trim()
+    .regex(/^\d{5}(-\d{4})?$/, "Enter a 5-digit US ZIP code"),
+  countryAlpha2: z
+    .string()
+    .trim()
+    .transform((value) => (isUsCountry(value) ? "US" : value.toUpperCase()))
+    .refine((value) => value === "US", "Shipping is limited to the United States"),
   contactName: z.string().min(1),
   contactPhone: z.string().min(5),
   contactEmail: z.string().email(),
