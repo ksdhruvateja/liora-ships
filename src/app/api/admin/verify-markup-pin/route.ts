@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const pinSchema = z.object({
-  pin: z.string().min(1).max(32),
+  pin: z.string().trim().min(1).max(32),
 });
 
 export async function POST(request: Request) {

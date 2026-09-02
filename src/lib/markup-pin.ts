@@ -34,15 +34,17 @@ export async function verifyMarkupPinHash(pin: string, stored: string) {
 
 export async function isMarkupPinValid(pin: string) {
   const config = getConfig();
-  if (config.MARKUP_ADMIN_PIN_HASH) {
-    return verifyMarkupPinHash(pin, config.MARKUP_ADMIN_PIN_HASH);
+  const normalizedPin = pin.trim();
+  const storedPin = config.MARKUP_ADMIN_PIN?.trim();
+
+  if (config.MARKUP_ADMIN_PIN_HASH?.startsWith("scrypt:")) {
+    return verifyMarkupPinHash(normalizedPin, config.MARKUP_ADMIN_PIN_HASH);
   }
-  if (config.MARKUP_ADMIN_PIN && config.NODE_ENV !== "production") {
-    return pin === config.MARKUP_ADMIN_PIN;
+
+  if (storedPin) {
+    return normalizedPin === storedPin;
   }
-  if (config.MARKUP_ADMIN_PIN) {
-    return pin === config.MARKUP_ADMIN_PIN;
-  }
+
   return false;
 }
 
@@ -80,10 +82,16 @@ export function verifyMarkupUnlockToken(token: string | null | undefined) {
 
 export function getClientIp(request: Request) {
   return (
+    request.headers.get("x-nf-client-connection-ip") ||
+    request.headers.get("cf-connecting-ip") ||
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     request.headers.get("x-real-ip") ||
     "unknown"
   );
+}
+
+function shouldTrackPinAttempts(ipAddress: string) {
+  return ipAddress !== "unknown";
 }
 
 export type PinAttemptState = {
@@ -92,48 +100,67 @@ export type PinAttemptState = {
 };
 
 export async function recordFailedPinAttempt(ipAddress: string): Promise<PinAttemptState> {
-  const { prisma } = await import("./db");
-  const now = new Date();
-  const row = await prisma.markupPinAttempt.upsert({
-    where: { ipAddress },
-    create: { ipAddress, failedAttempts: 1, lockedUntil: null },
-    update: { failedAttempts: { increment: 1 } },
-  });
-  const failedAttempts = row.failedAttempts;
-  if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
-    const lockedUntil = new Date(now.getTime() + LOCKOUT_MS);
-    await prisma.markupPinAttempt.update({
-      where: { ipAddress },
-      data: { lockedUntil, failedAttempts },
-    });
-    return { locked: true, remainingAttempts: 0 };
+  if (!shouldTrackPinAttempts(ipAddress)) {
+    return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
   }
-  return { locked: false, remainingAttempts: Math.max(0, MAX_FAILED_ATTEMPTS - failedAttempts) };
+  try {
+    const { prisma } = await import("./db");
+    const now = new Date();
+    const row = await prisma.markupPinAttempt.upsert({
+      where: { ipAddress },
+      create: { ipAddress, failedAttempts: 1, lockedUntil: null },
+      update: { failedAttempts: { increment: 1 } },
+    });
+    const failedAttempts = row.failedAttempts;
+    if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
+      const lockedUntil = new Date(now.getTime() + LOCKOUT_MS);
+      await prisma.markupPinAttempt.update({
+        where: { ipAddress },
+        data: { lockedUntil, failedAttempts },
+      });
+      return { locked: true, remainingAttempts: 0 };
+    }
+    return { locked: false, remainingAttempts: Math.max(0, MAX_FAILED_ATTEMPTS - failedAttempts) };
+  } catch {
+    return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
+  }
 }
 
 export async function clearPinAttempts(ipAddress: string) {
-  const { prisma } = await import("./db");
-  await prisma.markupPinAttempt.deleteMany({ where: { ipAddress } });
+  if (!shouldTrackPinAttempts(ipAddress)) return;
+  try {
+    const { prisma } = await import("./db");
+    await prisma.markupPinAttempt.deleteMany({ where: { ipAddress } });
+  } catch {
+    // Rate-limit storage is optional when migrations are still rolling out.
+  }
 }
 
 export async function getPinAttemptState(ipAddress: string): Promise<PinAttemptState> {
-  const { prisma } = await import("./db");
-  const row = await prisma.markupPinAttempt.findUnique({ where: { ipAddress } });
-  if (!row) return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
-  if (row.lockedUntil && row.lockedUntil.getTime() > Date.now()) {
-    return { locked: true, remainingAttempts: 0 };
-  }
-  if (row.lockedUntil && row.lockedUntil.getTime() <= Date.now()) {
-    await prisma.markupPinAttempt.update({
-      where: { ipAddress },
-      data: { failedAttempts: 0, lockedUntil: null },
-    });
+  if (!shouldTrackPinAttempts(ipAddress)) {
     return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
   }
-  return {
-    locked: false,
-    remainingAttempts: Math.max(0, MAX_FAILED_ATTEMPTS - row.failedAttempts),
-  };
+  try {
+    const { prisma } = await import("./db");
+    const row = await prisma.markupPinAttempt.findUnique({ where: { ipAddress } });
+    if (!row) return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
+    if (row.lockedUntil && row.lockedUntil.getTime() > Date.now()) {
+      return { locked: true, remainingAttempts: 0 };
+    }
+    if (row.lockedUntil && row.lockedUntil.getTime() <= Date.now()) {
+      await prisma.markupPinAttempt.update({
+        where: { ipAddress },
+        data: { failedAttempts: 0, lockedUntil: null },
+      });
+      return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
+    }
+    return {
+      locked: false,
+      remainingAttempts: Math.max(0, MAX_FAILED_ATTEMPTS - row.failedAttempts),
+    };
+  } catch {
+    return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
+  }
 }
 
 export async function logMarkupAudit(event: string, details: Record<string, unknown>) {

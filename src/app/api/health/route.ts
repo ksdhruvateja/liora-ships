@@ -19,8 +19,27 @@ export async function GET() {
   };
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return NextResponse.json({ ok: true, service: "liora-labs", markup, urls });
+    return NextResponse.json({
+      ok: true,
+      service: "liora-labs",
+      markup,
+      markupPinConfigured: Boolean(
+        config.MARKUP_ADMIN_PIN_HASH?.startsWith("scrypt:") || config.MARKUP_ADMIN_PIN,
+      ),
+      urls,
+    });
   } catch {
-    return NextResponse.json({ ok: false, service: "liora-labs", markup, urls }, { status: 503 });
+    return NextResponse.json(
+      {
+        ok: false,
+        service: "liora-labs",
+        markup,
+        markupPinConfigured: Boolean(
+          config.MARKUP_ADMIN_PIN_HASH?.startsWith("scrypt:") || config.MARKUP_ADMIN_PIN,
+        ),
+        urls,
+      },
+      { status: 503 },
+    );
   }
 }
