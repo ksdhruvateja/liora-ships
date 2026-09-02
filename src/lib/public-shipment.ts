@@ -10,6 +10,14 @@ export type PublicShipment = {
   courierName: string;
   estimatedDelivery: string | null;
   customerTotalCents: number;
+  finalCustomerTotalCents: number;
+  pickupCustomerCents: number;
+  pickupRequired: boolean;
+  pickupStatus: string;
+  pickupDate: string | null;
+  pickupFromTime: string | null;
+  pickupToTime: string | null;
+  referenceNumber: string | null;
   currency: string;
   trackingNumber: string | null;
   trackingUrl: string | null;
@@ -36,6 +44,14 @@ export function toPublicShipment(shipment: Shipment): PublicShipment {
     courierName: shipment.brandedCourierName,
     estimatedDelivery: estimatedDelivery(shipment),
     customerTotalCents: shipment.customerTotalCents,
+    finalCustomerTotalCents: shipment.finalCustomerTotalCents ?? shipment.customerTotalCents,
+    pickupCustomerCents: shipment.pickupCustomerCents ?? 0,
+    pickupRequired: shipment.pickupRequired,
+    pickupStatus: shipment.pickupStatus,
+    pickupDate: shipment.pickupDate,
+    pickupFromTime: shipment.pickupFromTime,
+    pickupToTime: shipment.pickupToTime,
+    referenceNumber: shipment.referenceNumber,
     currency: shipment.currency,
     trackingNumber: ready ? shipment.trackingNumber : null,
     trackingUrl:

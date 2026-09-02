@@ -42,12 +42,18 @@ export async function POST(request: Request) {
     const stripe = getStripe();
 
     const publishableKey = config.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
+    const amountCents = shipment.finalCustomerTotalCents ?? shipment.customerTotalCents;
+    const pickupCents = shipment.pickupCustomerCents ?? 0;
+    const shippingCents = shipment.customerTotalCents;
 
     if (config.mockMode) {
       return NextResponse.json({
         mock: true,
         shipmentId: shipment.id,
-        amountCents: shipment.customerTotalCents,
+        amountCents,
+        shippingCents,
+        pickupCents,
+        referenceNumber: shipment.referenceNumber,
         currency: shipment.currency,
         courierName: shipment.brandedCourierName,
         publishableKey,
@@ -65,7 +71,10 @@ export async function POST(request: Request) {
         return NextResponse.json({
           clientSecret: existingIntent.client_secret,
           shipmentId: shipment.id,
-          amountCents: shipment.customerTotalCents,
+          amountCents,
+          shippingCents,
+          pickupCents,
+          referenceNumber: shipment.referenceNumber,
           currency: shipment.currency,
           courierName: shipment.brandedCourierName,
           publishableKey,
@@ -74,7 +83,7 @@ export async function POST(request: Request) {
     }
 
     const intent = await stripe.paymentIntents.create({
-      amount: shipment.customerTotalCents,
+      amount: amountCents,
       currency: shipment.currency.toLowerCase(),
       receipt_email: shipment.customerEmail,
       automatic_payment_methods: { enabled: true },
@@ -97,7 +106,10 @@ export async function POST(request: Request) {
     return NextResponse.json({
       clientSecret: intent.client_secret,
       shipmentId: shipment.id,
-      amountCents: shipment.customerTotalCents,
+      amountCents,
+      shippingCents,
+      pickupCents,
+      referenceNumber: shipment.referenceNumber,
       currency: shipment.currency,
       courierName: shipment.brandedCourierName,
       publishableKey,

@@ -37,9 +37,30 @@ model Shipment {
   currency              String         @default("USD")
   baseCostCents         Int
   markupCents           Int
+  markupPercentUsed     Float?
   customerTotalCents    Int
+  finalCustomerTotalCents Int?
   estimatedMinDays      Int?
   estimatedMaxDays      Int?
+  referenceNumber       String?
+  pickupRequired        Boolean        @default(false)
+  easyshipOriginAddressId String?
+  pickupSlotId          String?
+  pickupDate            String?
+  pickupFromTime        String?
+  pickupToTime          String?
+  pickupTimezone        String?
+  pickupPriceCents      Int?
+  pickupBaseCostCents   Int?
+  pickupCustomerCents   Int            @default(0)
+  pickupCurrency        String?
+  easyshipPickupId      String?
+  pickupStatus          String         @default("NONE")
+  pickupErrorCode       String?
+  pickupErrorMessage    String?
+  labelGeneratedAt      DateTime?
+  businessDate          String?
+  createdBy             String?
   stripePaymentIntentId String?
   status                ShipmentStatus @default(QUOTED)
   easyshipShipmentId    String?
@@ -58,6 +79,12 @@ model Shipment {
   @@index([status, updatedAt])
   @@index([trackingNumber])
   @@index([customerEmail])
+  @@index([labelGeneratedAt])
+  @@index([businessDate])
+  @@index([referenceNumber])
+  @@index([easyshipPickupId])
+  @@index([createdBy])
+  @@index([pickupStatus])
 }
 
 model SavedContact {
@@ -85,6 +112,38 @@ model MarkupRule {
   appliesToCourierId String?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
+}
+
+model ShippingMarkupConfig {
+  id               String   @id @default("default")
+  enabled          Boolean  @default(true)
+  percentage       Float    @default(11)
+  fixedMarkupCents Int      @default(0)
+  updatedBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model MarkupAuditLog {
+  id                     String   @id @default(cuid())
+  previousEnabled        Boolean?
+  previousPercentage     Float?
+  previousFixedMarkupCents Int?
+  newEnabled             Boolean
+  newPercentage          Float
+  newFixedMarkupCents    Int
+  changedBy              String?
+  createdAt              DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model MarkupPinAttempt {
+  id             String    @id @default(cuid())
+  ipAddress      String    @unique
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  updatedAt      DateTime  @updatedAt
 }
 
 model CourierBrandMap {

@@ -12,6 +12,8 @@ import {
   EASYSHIP_RECHARGE_UNCERTAIN,
   RECHARGE_BLOCKED_BY_CARD_ISSUER,
 } from "./easyship-errors";
+import { schedulePickupForShipment } from "./pickup-fulfillment";
+import { businessDateForTimestamp } from "./business-time";
 import type { AddressInput, ParcelInput } from "./validations";
 
 export type FulfillmentDeps = {
@@ -162,9 +164,12 @@ export async function purchaseLabelForShipment(
         return ensureLabelEmailSent(updated, deps);
       }
 
+      const combinedEasyshipCostCents =
+        existing.baseCostCents + (existing.pickupRequired ? existing.pickupBaseCostCents ?? 0 : 0);
+
       await ensureEasyshipWalletFunded({
         shipmentId,
-        labelCostCents: existing.baseCostCents,
+        labelCostCents: combinedEasyshipCostCents,
         easyship,
       });
 
@@ -175,8 +180,10 @@ export async function purchaseLabelForShipment(
         courierServiceId: existing.easyshipRateId,
         customerEmail: existing.customerEmail,
         platformOrderNumber: existing.id,
+        referenceNumber: existing.referenceNumber,
       });
 
+      const labelGeneratedAt = new Date();
       const updated = await prisma.shipment.update({
         where: { id: shipmentId },
         data: {
@@ -185,6 +192,8 @@ export async function purchaseLabelForShipment(
           labelUrl: purchased.labelUrl,
           trackingNumber: purchased.trackingNumber,
           lastError: null,
+          labelGeneratedAt,
+          businessDate: businessDateForTimestamp(labelGeneratedAt),
         },
       });
 
@@ -198,7 +207,7 @@ export async function purchaseLabelForShipment(
         console.error("Could not save shipped contacts", error);
       }
 
-      return ensureLabelEmailSent(updated, deps);
+      return ensureLabelEmailSent(await schedulePickupForShipment(updated, easyship, alert), deps);
     } catch (error) {
       if (error instanceof EasyshipRechargeError) {
         if (error.code === RECHARGE_BLOCKED_BY_CARD_ISSUER) {

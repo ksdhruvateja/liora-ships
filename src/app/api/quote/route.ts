@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getConfig, getEnvMarkupRule } from "@/lib/config";
+import { getConfig } from "@/lib/config";
+import { getShippingMarkupSettings, priceShipping } from "@/lib/markup-settings";
+import { getStaffRole } from "@/lib/staff-auth";
 import { getEasyship } from "@/lib/easyship-client";
-import { applyMarkup } from "@/lib/markup";
 import { brandCourierName, formatCarrierServiceName, formatEstimatedDelivery } from "@/lib/courier-names";
 import { quoteRequestSchema } from "@/lib/validations";
 import { toPublicQuoteRate } from "@/lib/public-shipment";
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { customerEmail, origin, destination, parcel } = parsed.data;
+    const { customerEmail, origin, destination, parcel, referenceNumber } = parsed.data;
     const easyship = getEasyship();
     const rates = await easyship.requestRates({ origin, destination, parcel });
     if (rates.length === 0) {
@@ -34,7 +35,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const markupRule = getEnvMarkupRule();
+    const markupSettings = await getShippingMarkupSettings();
+    const staffRole = getStaffRole(request);
+    const createdBy = staffRole ?? null;
 
     const quoteGroupId = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
@@ -42,7 +45,10 @@ export async function POST(request: Request) {
     const shipments = await prisma.$transaction(
       rates.map((rate) => {
         const baseCostCents = Math.round(rate.totalCharge * 100);
-        const { markupCents, customerTotalCents } = applyMarkup(baseCostCents, markupRule);
+        const { markupCents, customerTotalCents, markupPercentUsed } = priceShipping(
+          baseCostCents,
+          markupSettings,
+        );
         const carrierName = formatCarrierServiceName({
           courierName: rate.courierName,
           umbrellaName: rate.umbrellaName,
@@ -59,6 +65,8 @@ export async function POST(request: Request) {
           data: {
             quoteGroupId,
             customerEmail,
+            referenceNumber: referenceNumber || null,
+            createdBy,
             originAddress: origin,
             destAddress: destination,
             parcel,
@@ -69,6 +77,7 @@ export async function POST(request: Request) {
             currency: rate.currency || "USD",
             baseCostCents,
             markupCents,
+            markupPercentUsed,
             customerTotalCents,
             estimatedMinDays: rate.minDeliveryTime,
             estimatedMaxDays: rate.maxDeliveryTime,

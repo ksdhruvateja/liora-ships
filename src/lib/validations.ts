@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_COMPANY_NAME } from "./parcel-contents";
+import { parseReferenceNumber } from "./reference-number";
 import { isUsCountry, isUsState, normalizeUsState } from "./us-locations";
 
 export const addressSchema = z.object({
@@ -49,6 +50,39 @@ export const quoteRequestSchema = z.object({
   origin: addressSchema,
   destination: addressSchema,
   parcel: parcelSchema,
+  referenceNumber: z
+    .string()
+    .optional()
+    .default("")
+    .transform((value) => {
+      try {
+        return parseReferenceNumber(value);
+      } catch {
+        return "";
+      }
+    }),
+});
+
+export const configureShipmentSchema = z.object({
+  referenceNumber: z
+    .string()
+    .optional()
+    .default("")
+    .transform((value) => parseReferenceNumber(value)),
+  pickupRequired: z.boolean().default(false),
+  pickupSlot: z
+    .object({
+      courierServiceId: z.string().min(1),
+      timeSlotId: z.string().nullable().optional(),
+      pickupDate: z.string().min(1),
+      fromTime: z.string().min(1),
+      toTime: z.string().min(1),
+      timezone: z.string().nullable().optional(),
+      priceCents: z.number().int().nonnegative().nullable(),
+      currency: z.string().length(3).optional().default("USD"),
+    })
+    .nullable()
+    .optional(),
 });
 
 export const checkoutRequestSchema = z.object({

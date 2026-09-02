@@ -28,7 +28,7 @@ function parseNonNegativeNumber(value: string | undefined, fallback: number) {
 
 export function readMarkupFromEnv() {
   return {
-    APP_MARKUP_PERCENT: parseNonNegativeNumber(process.env.APP_MARKUP_PERCENT, 10),
+    APP_MARKUP_PERCENT: parseNonNegativeNumber(process.env.APP_MARKUP_PERCENT, 11),
     APP_MARKUP_FLAT_CENTS: Math.round(parseNonNegativeNumber(process.env.APP_MARKUP_FLAT_CENTS, 0)),
     APP_MARKUP_CAP_CENTS: Math.round(parseNonNegativeNumber(process.env.APP_MARKUP_CAP_CENTS, 0)),
   };
@@ -49,7 +49,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: optionalString,
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DIRECT_URL: optionalString,
-  APP_MARKUP_PERCENT: z.coerce.number().min(0).default(10),
+  APP_MARKUP_PERCENT: z.coerce.number().min(0).default(11),
   APP_MARKUP_FLAT_CENTS: z.coerce.number().int().min(0).default(0),
   APP_MARKUP_CAP_CENTS: z.coerce.number().int().min(0).default(0),
   NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Liora Labs Shipping"),
@@ -75,6 +75,12 @@ const envSchema = z.object({
     z.string().url().optional().or(z.literal("")).default(""),
   ),
   CRON_SECRET: z.preprocess(emptyToUndefined, z.string().optional().default("")),
+  STAFF_API_SECRET: z.preprocess(emptyToUndefined, z.string().optional().default("")),
+  ADMIN_API_SECRET: z.preprocess(emptyToUndefined, z.string().optional().default("")),
+  STAFF_SETTINGS_PIN: z.preprocess(emptyToUndefined, z.string().optional().default("")),
+  MARKUP_ADMIN_PIN: z.preprocess(emptyToUndefined, z.string().optional().default("")),
+  MARKUP_ADMIN_PIN_HASH: z.preprocess(emptyToUndefined, z.string().optional().default("")),
+  BUSINESS_TIMEZONE: z.string().min(1).default("America/New_York"),
   FOREZSHIPS_MOCK: z.string().optional().default(""),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
@@ -124,7 +130,7 @@ export function getConfig(): AppConfig {
         STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? "",
         DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://localhost:5432/forezships",
         DIRECT_URL: process.env.DIRECT_URL,
-        APP_MARKUP_PERCENT: 10,
+        APP_MARKUP_PERCENT: 11,
         APP_MARKUP_FLAT_CENTS: 0,
         APP_MARKUP_CAP_CENTS: 0,
         NEXT_PUBLIC_APP_NAME: "Liora Labs Shipping",
@@ -135,6 +141,12 @@ export function getConfig(): AppConfig {
         ALERT_EMAIL: "zippyyycare@gmail.com",
         SLACK_WEBHOOK_URL: "",
         CRON_SECRET: "",
+        STAFF_API_SECRET: "",
+        ADMIN_API_SECRET: "",
+        STAFF_SETTINGS_PIN: "",
+        MARKUP_ADMIN_PIN: "",
+        MARKUP_ADMIN_PIN_HASH: "",
+        BUSINESS_TIMEZONE: "America/New_York",
         FOREZSHIPS_MOCK: "",
         NODE_ENV: "development",
         appName: "Liora Labs Shipping",

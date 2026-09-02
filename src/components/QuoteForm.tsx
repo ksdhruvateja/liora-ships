@@ -13,6 +13,9 @@ import {
 } from "@/lib/parcel-contents";
 import { US_COUNTRY, US_STATES, normalizeUsState } from "@/lib/us-locations";
 import { MotionButton } from "@/components/motion/Pressable";
+import { PickupOptions } from "@/components/PickupOptions";
+import type { NormalizedPickupSlot } from "@/lib/easyship-pickups";
+import { REFERENCE_NUMBER_MAX_LENGTH } from "@/lib/reference-number";
 
 type Address = {
   line1: string;
@@ -270,6 +273,13 @@ export function QuoteForm() {
   const [savedContacts, setSavedContacts] = useState<SavedContact[]>([]);
   const [originSavedId, setOriginSavedId] = useState("");
   const [destSavedId, setDestSavedId] = useState("");
+  const [referenceNumber, setReferenceNumber] = useState("");
+  const [pickupConfig, setPickupConfig] = useState<{
+    pickupRequired: boolean;
+    selectedSlot: NormalizedPickupSlot | null;
+    finalTotalCents: number;
+  }>({ pickupRequired: false, selectedSlot: null, finalTotalCents: 0 });
+  const [continuing, setContinuing] = useState(false);
 
   useEffect(() => {
     const email = customerEmail.trim();
@@ -330,6 +340,7 @@ export function QuoteForm() {
     setError(null);
     setRates([]);
     setSelectedId(null);
+    setPickupConfig({ pickupRequired: false, selectedSlot: null, finalTotalCents: 0 });
     try {
       const contents =
         parcel.description === "Other"
@@ -370,6 +381,7 @@ export function QuoteForm() {
             category: parcelCategoryForContents(parcel.description),
             declaredValueCents: Math.round(Number(parcel.declaredValue) * 100),
           },
+          referenceNumber,
         }),
       });
       const data = await response.json();
@@ -470,6 +482,18 @@ export function QuoteForm() {
                 <option value="kg">Kilograms</option>
               </select>
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="Reference Number">
+                <input
+                  className={inputClass}
+                  type="text"
+                  maxLength={REFERENCE_NUMBER_MAX_LENGTH}
+                  placeholder="Order, invoice or internal reference"
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                />
+              </Field>
+            </div>
             <div className="sm:col-span-2">
               <Field label="Contents" required>
                 <select
@@ -583,14 +607,61 @@ export function QuoteForm() {
               );
             })}
           </div>
+          {selected ? (
+            <div className="mt-5">
+              <PickupOptions
+                key={selected.shipmentId}
+                shipmentId={selected.shipmentId}
+                shippingTotalCents={selected.customerTotalCents}
+                currency={selected.currency}
+                onChange={setPickupConfig}
+              />
+            </div>
+          ) : null}
           <MotionButton
             type="button"
-            disabled={!selected}
-            onClick={() => selected && router.push(`/checkout/${selected.shipmentId}`)}
+            disabled={!selected || continuing}
+            onClick={async () => {
+              if (!selected) return;
+              if (pickupConfig.pickupRequired && !pickupConfig.selectedSlot) {
+                setError("Select a pickup date and time slot, or choose drop-off instead.");
+                return;
+              }
+              if (
+                pickupConfig.pickupRequired &&
+                pickupConfig.selectedSlot &&
+                pickupConfig.selectedSlot.priceCents == null
+              ) {
+                setError(
+                  "Pickup pricing is unavailable for this slot. Select another slot or contact an administrator.",
+                );
+                return;
+              }
+              setContinuing(true);
+              setError(null);
+              try {
+                const response = await fetch(`/api/shipments/${selected.shipmentId}/configure`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    referenceNumber,
+                    pickupRequired: pickupConfig.pickupRequired,
+                    pickupSlot: pickupConfig.pickupRequired ? pickupConfig.selectedSlot : null,
+                  }),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error ?? "Unable to save shipment options");
+                router.push(`/checkout/${selected.shipmentId}`);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Unable to continue to payment");
+              } finally {
+                setContinuing(false);
+              }
+            }}
             className="btn-primary mt-5 disabled:opacity-50"
           >
-            Continue to payment
-            <span className="btn-arrow">→</span>
+            {continuing ? "Saving options…" : "Continue to payment"}
+            {continuing ? null : <span className="btn-arrow">→</span>}
           </MotionButton>
         </motion.section>
       ) : null}

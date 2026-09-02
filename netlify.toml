@@ -10,7 +10,7 @@
   FOREZSHIPS_MOCK = "false"
   NEXT_PUBLIC_APP_NAME = "Liora Labs Shipping"
   EASYSHIP_BASE_URL = "https://public-api.easyship.com/2024-09"
-  APP_MARKUP_PERCENT = "10"
+  APP_MARKUP_PERCENT = "11"
   APP_MARKUP_FLAT_CENTS = "0"
   APP_MARKUP_CAP_CENTS = "0"
   GMAIL_USER = "zippyyycare@gmail.com"
@@ -27,7 +27,13 @@
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "Stripe publishable key (pk_test_ or pk_live_)"
   GMAIL_APP_PASSWORD = "Gmail App Password (16 characters)"
   CRON_SECRET = "Random secret for the reconcile job"
-  APP_MARKUP_PERCENT = "Markup percent on carrier cost (example 10)"
+  STAFF_API_SECRET = "Employee staff password for /staff/login"
+  ADMIN_API_SECRET = "Administrator staff password for /staff/login"
+  STAFF_SETTINGS_PIN = "PIN required to change shipping markup in /staff/settings"
+  MARKUP_ADMIN_PIN = "Temporary markup admin PIN (prefer MARKUP_ADMIN_PIN_HASH in production)"
+  MARKUP_ADMIN_PIN_HASH = "scrypt hash of markup admin PIN"
+  BUSINESS_TIMEZONE = "America/New_York"
+  APP_MARKUP_PERCENT = "Fallback markup percent when database config is unavailable (11)"
 
 [functions]
   directory = "netlify/functions"

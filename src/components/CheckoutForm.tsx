@@ -11,11 +11,17 @@ function PayForm({
   shipmentId,
   courierName,
   amountCents,
+  shippingCents,
+  pickupCents,
+  referenceNumber,
   currency,
 }: {
   shipmentId: string;
   courierName: string;
   amountCents: number;
+  shippingCents: number;
+  pickupCents: number;
+  referenceNumber: string | null;
   currency: string;
 }) {
   const stripe = useStripe();
@@ -57,6 +63,25 @@ function PayForm({
             : carrier}
         </p>
         <p className="mt-2 text-3xl font-extrabold">{formatMoney(amountCents, currency)}</p>
+        <div className="mt-3 space-y-1 border-t border-ink/10 pt-3 text-sm text-muted">
+          <div className="flex justify-between">
+            <span>Shipping service</span>
+            <span>{formatMoney(shippingCents, currency)}</span>
+          </div>
+          {pickupCents > 0 ? (
+            <div className="flex justify-between">
+              <span>Courier pickup</span>
+              <span>{formatMoney(pickupCents, currency)}</span>
+            </div>
+          ) : null}
+          <div className="flex justify-between border-t border-ink/10 pt-2 font-semibold text-ink">
+            <span>Total</span>
+            <span>{formatMoney(amountCents, currency)}</span>
+          </div>
+        </div>
+        {referenceNumber ? (
+          <p className="mt-3 text-sm text-muted">Reference: {referenceNumber}</p>
+        ) : null}
       </div>
       <PaymentElement />
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
@@ -81,7 +106,14 @@ export function CheckoutForm({
 }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [mock, setMock] = useState(false);
-  const [meta, setMeta] = useState<{ courierName: string; amountCents: number; currency: string } | null>(null);
+  const [meta, setMeta] = useState<{
+    courierName: string;
+    amountCents: number;
+    shippingCents: number;
+    pickupCents: number;
+    referenceNumber: string | null;
+    currency: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [publishableKey, setPublishableKey] = useState(
@@ -107,6 +139,9 @@ export function CheckoutForm({
           setMeta({
             courierName: data.courierName,
             amountCents: data.amountCents,
+            shippingCents: data.shippingCents ?? data.amountCents,
+            pickupCents: data.pickupCents ?? 0,
+            referenceNumber: data.referenceNumber ?? null,
             currency: data.currency,
           });
         }
@@ -183,6 +218,25 @@ export function CheckoutForm({
             })()}
           </p>
           <p className="mt-2 text-3xl font-extrabold">{formatMoney(meta.amountCents, meta.currency)}</p>
+          <div className="mt-3 space-y-1 border-t border-ink/10 pt-3 text-sm text-muted">
+            <div className="flex justify-between">
+              <span>Shipping service</span>
+              <span>{formatMoney(meta.shippingCents, meta.currency)}</span>
+            </div>
+            {meta.pickupCents > 0 ? (
+              <div className="flex justify-between">
+                <span>Courier pickup</span>
+                <span>{formatMoney(meta.pickupCents, meta.currency)}</span>
+              </div>
+            ) : null}
+            <div className="flex justify-between border-t border-ink/10 pt-2 font-semibold text-ink">
+              <span>Total</span>
+              <span>{formatMoney(meta.amountCents, meta.currency)}</span>
+            </div>
+          </div>
+          {meta.referenceNumber ? (
+            <p className="mt-3 text-sm text-muted">Reference: {meta.referenceNumber}</p>
+          ) : null}
         </div>
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
         <MotionButton
@@ -210,6 +264,9 @@ export function CheckoutForm({
         shipmentId={shipmentId}
         courierName={meta.courierName}
         amountCents={meta.amountCents}
+        shippingCents={meta.shippingCents}
+        pickupCents={meta.pickupCents}
+        referenceNumber={meta.referenceNumber}
         currency={meta.currency}
       />
     </Elements>

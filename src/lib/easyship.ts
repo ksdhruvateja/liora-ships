@@ -1,4 +1,5 @@
 import { companyNameOrDefault } from "./parcel-contents";
+import { normalizePickupSlotsResponse, type NormalizedPickupAvailability } from "./easyship-pickups";
 
 export type AddressInput = {
   line1: string;
@@ -55,6 +56,11 @@ export type AddWalletCreditResult =
   | { status: 202 }
   | { status: Exclude<number, 201 | 202>; error: string };
 
+export type PurchasedPickup = {
+  easyshipPickupId: string;
+  raw: Record<string, unknown>;
+};
+
 export type EasyshipClient = {
   requestRates: (input: {
     origin: AddressInput;
@@ -66,6 +72,25 @@ export type EasyshipClient = {
     amountDollars: number;
     paymentSourceId: string;
   }) => Promise<AddWalletCreditResult>;
+  resolveOriginAddress: (origin: AddressInput) => Promise<string>;
+  listPickupSlots: (input: {
+    courierServiceId: string;
+    originAddressId: string;
+  }) => Promise<NormalizedPickupAvailability>;
+  createPickup: (input: {
+    courierServiceId: string;
+    easyshipShipmentId: string;
+    timeSlotId?: string | null;
+    selectedDate: string;
+    selectedFromTime?: string | null;
+    selectedToTime?: string | null;
+  }) => Promise<PurchasedPickup>;
+  listShipmentsByLabelGeneratedAt: (input: {
+    labelGeneratedAtFrom: string;
+    labelGeneratedAtTo: string;
+    page?: number;
+    perPage?: number;
+  }) => Promise<{ shipments: Record<string, unknown>[]; meta: Record<string, unknown> }>;
   createShipmentAndBuyLabel: (input: {
     origin: AddressInput;
     destination: AddressInput;
@@ -73,6 +98,7 @@ export type EasyshipClient = {
     courierServiceId: string;
     customerEmail: string;
     platformOrderNumber: string;
+    referenceNumber?: string | null;
   }) => Promise<PurchasedLabel>;
 };
 
@@ -320,6 +346,80 @@ export function createEasyshipClient(options: {
       return (body.rates ?? []).map(mapRate).filter((rate): rate is EasyshipRate => Boolean(rate));
     },
 
+    async resolveOriginAddress(origin) {
+      const created = await easyshipFetch<{ address?: Record<string, unknown> }>("/addresses", {
+        method: "POST",
+        body: JSON.stringify({ address: toEasyshipAddress(origin) }),
+      });
+      const address = created.address ?? {};
+      const id =
+        (typeof address.easyship_address_id === "string" && address.easyship_address_id) ||
+        (typeof address.id === "string" && address.id) ||
+        "";
+      if (!id) throw new Error("Easyship did not return an origin address id");
+      return id;
+    },
+
+    async listPickupSlots({ courierServiceId, originAddressId }) {
+      const { response, body } = await easyshipFetchRaw(
+        `/courier_services/${encodeURIComponent(courierServiceId)}/pickup_slots?origin_address_id=${encodeURIComponent(originAddressId)}`,
+        { method: "GET" },
+      );
+      return normalizePickupSlotsResponse(courierServiceId, body, response.status);
+    },
+
+    async createPickup({
+      courierServiceId,
+      easyshipShipmentId,
+      timeSlotId,
+      selectedDate,
+      selectedFromTime,
+      selectedToTime,
+    }) {
+      const payload: Record<string, unknown> = {
+        courier_service_id: courierServiceId,
+        selected_date: selectedDate,
+        easyship_shipment_ids: [easyshipShipmentId],
+      };
+      if (timeSlotId) payload.time_slot_id = timeSlotId;
+      else {
+        if (selectedFromTime) payload.selected_from_time = selectedFromTime;
+        if (selectedToTime) payload.selected_to_time = selectedToTime;
+      }
+      const body = await easyshipFetch<{ pickup?: Record<string, unknown> }>("/pickups", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const pickup = body.pickup ?? (body as Record<string, unknown>);
+      const easyshipPickupId = String(
+        pickup.easyship_pickup_id ?? pickup.id ?? pickup.pickup_id ?? "",
+      );
+      if (!easyshipPickupId) throw new Error("Easyship did not return a pickup id");
+      return { easyshipPickupId, raw: pickup as Record<string, unknown> };
+    },
+
+    async listShipmentsByLabelGeneratedAt({
+      labelGeneratedAtFrom,
+      labelGeneratedAtTo,
+      page = 1,
+      perPage = 100,
+    }) {
+      const query = new URLSearchParams({
+        label_generated_at_from: labelGeneratedAtFrom,
+        label_generated_at_to: labelGeneratedAtTo,
+        page: String(page),
+        per_page: String(Math.min(perPage, 100)),
+      });
+      const body = await easyshipFetch<{
+        shipments?: Record<string, unknown>[];
+        meta?: Record<string, unknown>;
+      }>(`/shipments?${query.toString()}`, { method: "GET" });
+      return {
+        shipments: body.shipments ?? [],
+        meta: body.meta ?? {},
+      };
+    },
+
     async createShipmentAndBuyLabel({
       origin,
       destination,
@@ -327,6 +427,7 @@ export function createEasyshipClient(options: {
       courierServiceId,
       customerEmail,
       platformOrderNumber,
+      referenceNumber,
     }) {
       const parcels = toEasyshipParcels(parcel, origin.countryAlpha2);
 
@@ -350,7 +451,8 @@ export function createEasyshipClient(options: {
             shipping_settings: labelShippingSettings(parcel),
             order_data: {
               platform_name: "Liora Labs Shipping",
-              platform_order_number: platformOrderNumber,
+              platform_order_number: referenceNumber?.trim() || platformOrderNumber,
+              order_number: referenceNumber?.trim() || undefined,
             },
           }),
         },

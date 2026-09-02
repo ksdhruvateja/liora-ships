@@ -13,6 +13,7 @@ describe("applyMarkup", () => {
     const result = applyMarkup(10000, defaultRule);
     expect(result.markupCents).toBe(1500);
     expect(result.customerTotalCents).toBe(11500);
+    expect(result.markupPercentUsed).toBe(15);
   });
 
   it("applies the $2.00 floor when percent markup is smaller", () => {

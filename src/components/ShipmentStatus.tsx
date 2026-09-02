@@ -166,10 +166,20 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
 
   if (shipment.status === "LABEL_CREATED") {
     const { label, carrier } = splitDisplayCourierName(shipment.courierName);
+    const totalPaid = shipment.finalCustomerTotalCents ?? shipment.customerTotalCents;
+    const pickupFailed =
+      shipment.pickupRequired &&
+      (shipment.pickupStatus === "FAILED" || shipment.pickupStatus === "MANUAL_REVIEW");
     return (
       <div className="surface mx-auto max-w-2xl p-6 sm:p-8">
         <p className="eyebrow">Label ready</p>
         <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">You’re all set</h1>
+        {pickupFailed ? (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-ink">
+            Your shipping label was generated, but the pickup could not be scheduled. Our team has been
+            notified.
+          </p>
+        ) : null}
         <p className="mt-3 text-muted">
           {shipment.labelEmailSent
             ? `A copy was emailed to ${shipment.customerEmail}, with the PDF attached when available.`
@@ -187,10 +197,52 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
                 : carrier}
             </dd>
           </div>
+          {shipment.referenceNumber ? (
+            <div>
+              <dt className="text-sm text-muted">Reference number</dt>
+              <dd className="font-semibold">{shipment.referenceNumber}</dd>
+            </div>
+          ) : null}
           <div>
-            <dt className="text-sm text-muted">Total paid</dt>
+            <dt className="text-sm text-muted">Amount paid</dt>
+            <dd className="font-semibold">{formatMoney(totalPaid, shipment.currency)}</dd>
+          </div>
+          <div>
+            <dt className="text-sm text-muted">Shipping service</dt>
             <dd className="font-semibold">{formatMoney(shipment.customerTotalCents, shipment.currency)}</dd>
           </div>
+          <div>
+            <dt className="text-sm text-muted">Pickup required</dt>
+            <dd className="font-semibold">{shipment.pickupRequired ? "Yes" : "No"}</dd>
+          </div>
+          {shipment.pickupRequired ? (
+            <>
+              <div>
+                <dt className="text-sm text-muted">Pickup date</dt>
+                <dd className="font-semibold">{shipment.pickupDate ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-muted">Pickup time</dt>
+                <dd className="font-semibold">
+                  {shipment.pickupFromTime && shipment.pickupToTime
+                    ? `${shipment.pickupFromTime} – ${shipment.pickupToTime}`
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm text-muted">Pickup fee</dt>
+                <dd className="font-semibold">
+                  {shipment.pickupCustomerCents === 0
+                    ? "Free"
+                    : formatMoney(shipment.pickupCustomerCents, shipment.currency)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm text-muted">Pickup status</dt>
+                <dd className="font-semibold">{shipment.pickupStatus}</dd>
+              </div>
+            </>
+          ) : null}
           <div>
             <dt className="text-sm text-muted">Tracking number</dt>
             <dd className="font-semibold">{shipment.trackingNumber ?? "Assigned shortly"}</dd>

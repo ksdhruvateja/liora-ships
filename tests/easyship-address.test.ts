@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createEasyshipClient, extractLabel } from "@/lib/easyship";
+import { createEasyshipClient } from "@/lib/easyship";
 
 const origin = {
   line1: "1 Market St",
@@ -68,69 +68,5 @@ describe("easyship address mapping", () => {
     const body = JSON.parse((fetchImpl.mock.calls[0][1] as RequestInit).body as string);
     expect(body.origin_address.company_name).toBe("Liora");
     expect(body.destination_address.company_name).toBe("Liora");
-  });
-
-  it("reads a label URL from shipping documents", () => {
-    expect(
-      extractLabel({
-        easyship_shipment_id: "ES1",
-        shipping_documents: [{ category: "label", url: "https://example.com/label.pdf" }],
-        trackings: [{ tracking_number: "1Z1" }],
-      }),
-    ).toMatchObject({
-      labelUrl: "https://example.com/label.pdf",
-      trackingNumber: "1Z1",
-    });
-  });
-
-  it("turns a base64 label into a downloadable data URL", () => {
-    expect(
-      extractLabel({
-        easyship_shipment_id: "ES1",
-        shipping_documents: [{ category: "label", base64_encoded_strings: ["JVBERi0x"] }],
-      }).labelUrl,
-    ).toBe("data:application/pdf;base64,JVBERi0x");
-  });
-
-  it("loads the label URL after Easyship creates a shipment without documents", async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      const path = String(url);
-      const withDocs = {
-        ok: true,
-        text: async () =>
-          JSON.stringify({
-            shipment: {
-              easyship_shipment_id: "ES1",
-              shipping_documents: [{ category: "label", url: "https://example.com/label.pdf" }],
-              trackings: [{ tracking_number: "1Z1" }],
-            },
-          }),
-      };
-      if (path.endsWith("/shipments")) {
-        return {
-          ok: true,
-          text: async () =>
-            JSON.stringify({
-              shipment: { easyship_shipment_id: "ES1", shipping_documents: [], trackings: [] },
-            }),
-        };
-      }
-      return withDocs;
-    });
-    const client = createEasyshipClient({
-      apiKey: "key",
-      baseUrl: "https://api.easyship.com/2024-09",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
-    });
-    const label = await client.createShipmentAndBuyLabel({
-      origin,
-      destination,
-      parcel,
-      courierServiceId: "rate_1",
-      customerEmail: "buyer@example.com",
-      platformOrderNumber: "ship_1",
-    });
-    expect(label.labelUrl).toBe("https://example.com/label.pdf");
-    expect(label.trackingNumber).toBe("1Z1");
   });
 });

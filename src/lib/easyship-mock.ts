@@ -49,6 +49,69 @@ export function createMockEasyshipClient(): EasyshipClient {
       }
       return { status: 201 as const, transactionReference: `mock-recharge-${amountDollars}` };
     },
+    async resolveOriginAddress() {
+      return "mock-origin-address-id";
+    },
+    async listPickupSlots({ courierServiceId }) {
+      const { normalizePickupSlotsResponse } = await import("./easyship-pickups");
+      if (courierServiceId === "mock-express") {
+        return normalizePickupSlotsResponse(courierServiceId, {}, 404);
+      }
+      if (courierServiceId === "mock-overnight") {
+        return normalizePickupSlotsResponse(
+          courierServiceId,
+          {
+            courier_service_handover_option: {
+              timezone: "America/New_York",
+              pickup_slots: [
+                {
+                  date: new Date().toISOString().slice(0, 10),
+                  time_slots: [
+                    {
+                      time_slot_id: "mock-free-slot",
+                      from_time: "09:00",
+                      to_time: "12:00",
+                      price: 0,
+                      currency: "USD",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+          200,
+        );
+      }
+      return normalizePickupSlotsResponse(
+        courierServiceId,
+        {
+          courier_service_handover_option: {
+            timezone: "America/New_York",
+            pickup_slots: [
+              {
+                date: new Date().toISOString().slice(0, 10),
+                time_slots: [
+                  {
+                    time_slot_id: "mock-slot-1",
+                    from_time: "12:00",
+                    to_time: "16:00",
+                    price: 15,
+                    currency: "USD",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        200,
+      );
+    },
+    async createPickup() {
+      return { easyshipPickupId: "mock-pickup-1", raw: {} };
+    },
+    async listShipmentsByLabelGeneratedAt() {
+      return { shipments: [], meta: {} };
+    },
     async createShipmentAndBuyLabel({ platformOrderNumber }) {
       const trackingNumber = `FZ${platformOrderNumber.slice(-8).toUpperCase()}`;
       return {

@@ -16,6 +16,7 @@ describe("env markup", () => {
     expect(applyMarkup(996, getEnvMarkupRule())).toEqual({
       markupCents: 100,
       customerTotalCents: 1096,
+      markupPercentUsed: 10,
     });
 
     process.env.APP_MARKUP_PERCENT = "25";
@@ -23,6 +24,7 @@ describe("env markup", () => {
     expect(applyMarkup(996, getEnvMarkupRule())).toEqual({
       markupCents: 249,
       customerTotalCents: 1245,
+      markupPercentUsed: 25,
     });
   });
 
@@ -34,6 +36,7 @@ describe("env markup", () => {
     expect(applyMarkup(996, getEnvMarkupRule())).toEqual({
       markupCents: 200,
       customerTotalCents: 1196,
+      markupPercentUsed: 0,
     });
   });
 });

@@ -77,7 +77,15 @@ export function renderLabelEmailHtml(input: LabelEmailInput, appName: string) {
 </html>`;
 }
 
-import { downloadLabelPdf } from "./label-file";
+async function loadLabelPdf(sourceUrl: string | null | undefined) {
+  if (!sourceUrl || sourceUrl.startsWith("mock://")) return undefined;
+  const config = getConfig();
+  const response = await fetch(sourceUrl, {
+    headers: { Authorization: `Bearer ${config.EASYSHIP_API_KEY}` },
+  });
+  if (!response.ok) return undefined;
+  return Buffer.from(await response.arrayBuffer());
+}
 
 export function canSendLabelEmail() {
   return Boolean(getConfig().GMAIL_APP_PASSWORD.replace(/\s+/g, ""));
@@ -129,9 +137,7 @@ export async function sendLabelEmail(input: LabelEmailInput) {
     `Track package: ${input.trackingUrl}`,
   ].join("\n");
 
-  const pdf = input.labelSourceUrl && !input.labelSourceUrl.startsWith("mock://")
-    ? await downloadLabelPdf(input.labelSourceUrl, getConfig().EASYSHIP_API_KEY)
-    : undefined;
+  const pdf = await loadLabelPdf(input.labelSourceUrl);
   const tracking = input.trackingNumber ?? input.shipmentId;
   const filename = `${config.appName.toLowerCase().replace(/\s+/g, "-")}-label-${tracking}.pdf`;
 
@@ -144,7 +150,7 @@ export async function sendLabelEmail(input: LabelEmailInput) {
     html,
     text,
     attachments: pdf
-      ? [{ filename, content: Buffer.from(pdf.bytes), contentType: pdf.contentType }]
+      ? [{ filename, content: pdf, contentType: "application/pdf" }]
       : undefined,
   });
   return { id: info.messageId };
