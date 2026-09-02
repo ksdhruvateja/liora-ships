@@ -5,6 +5,7 @@ import {
   createMarkupUnlockToken,
   getClientIp,
   getPinAttemptState,
+  isMarkupPinConfigured,
   isMarkupPinValid,
   logMarkupAudit,
   recordFailedPinAttempt,
@@ -18,6 +19,16 @@ const pinSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  if (!isMarkupPinConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "Markup PIN is not configured on the server. Set MARKUP_ADMIN_PIN in Netlify environment variables and redeploy.",
+      },
+      { status: 503 },
+    );
+  }
+
   const ipAddress = getClientIp(request);
   const state = await getPinAttemptState(ipAddress);
   if (state.locked) {

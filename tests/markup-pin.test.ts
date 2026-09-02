@@ -80,12 +80,22 @@ describe("markup PIN security", () => {
   afterEach(() => {
     delete process.env.MARKUP_ADMIN_PIN;
     delete process.env.MARKUP_ADMIN_PIN_HASH;
+    delete process.env.STAFF_SETTINGS_PIN;
     resetConfigCache();
   });
 
   it("accepts the configured PIN", async () => {
     await expect(isMarkupPinValid("2720022")).resolves.toBe(true);
     await expect(isMarkupPinValid("0000000")).resolves.toBe(false);
+  });
+
+  it("accepts STAFF_SETTINGS_PIN as a legacy fallback", async () => {
+    delete process.env.MARKUP_ADMIN_PIN;
+    process.env.STAFF_SETTINGS_PIN = "2720022";
+    resetConfigCache();
+    await expect(isMarkupPinValid("2720022")).resolves.toBe(true);
+    delete process.env.STAFF_SETTINGS_PIN;
+    resetConfigCache();
   });
 
   it("verifies hashed PIN values", async () => {
@@ -160,5 +170,21 @@ describe("verify-markup-pin route", () => {
     const data = await response.json();
     expect(response.status).toBe(401);
     expect(data.error).toBe("Invalid PIN.");
+  });
+
+  it("reports when markup PIN is not configured", async () => {
+    delete process.env.MARKUP_ADMIN_PIN;
+    resetConfigCache();
+    const { POST } = await import("@/app/api/admin/verify-markup-pin/route");
+    const response = await POST(
+      new Request("http://localhost/api/admin/verify-markup-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: "2720022" }),
+      }),
+    );
+    const data = await response.json();
+    expect(response.status).toBe(503);
+    expect(data.error).toContain("not configured");
   });
 });

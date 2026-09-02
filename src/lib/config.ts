@@ -34,6 +34,17 @@ export function readMarkupFromEnv() {
   };
 }
 
+function readSensitiveFromEnv() {
+  const read = (key: string) => process.env[key]?.trim() ?? "";
+  return {
+    STAFF_API_SECRET: read("STAFF_API_SECRET"),
+    ADMIN_API_SECRET: read("ADMIN_API_SECRET"),
+    STAFF_SETTINGS_PIN: read("STAFF_SETTINGS_PIN"),
+    MARKUP_ADMIN_PIN: read("MARKUP_ADMIN_PIN"),
+    MARKUP_ADMIN_PIN_HASH: read("MARKUP_ADMIN_PIN_HASH"),
+  };
+}
+
 const envSchema = z.object({
   EASYSHIP_API_KEY: z.string().min(1, "EASYSHIP_API_KEY is required"),
   EASYSHIP_BASE_URL: z
@@ -103,7 +114,7 @@ function isBuildTime() {
 
 export function getConfig(): AppConfig {
   if (cached) {
-    Object.assign(cached, readMarkupFromEnv());
+    Object.assign(cached, readMarkupFromEnv(), readSensitiveFromEnv());
     return cached;
   }
   normalizeProcessEnv();

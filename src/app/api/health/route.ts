@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
+import { isMarkupPinConfigured } from "@/lib/markup-pin";
 import { stripeWebhookUrl } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -23,9 +24,7 @@ export async function GET() {
       ok: true,
       service: "liora-labs",
       markup,
-      markupPinConfigured: Boolean(
-        config.MARKUP_ADMIN_PIN_HASH?.startsWith("scrypt:") || config.MARKUP_ADMIN_PIN,
-      ),
+      markupPinConfigured: isMarkupPinConfigured(),
       urls,
     });
   } catch {
@@ -34,9 +33,7 @@ export async function GET() {
         ok: false,
         service: "liora-labs",
         markup,
-        markupPinConfigured: Boolean(
-          config.MARKUP_ADMIN_PIN_HASH?.startsWith("scrypt:") || config.MARKUP_ADMIN_PIN,
-        ),
+        markupPinConfigured: isMarkupPinConfigured(),
         urls,
       },
       { status: 503 },

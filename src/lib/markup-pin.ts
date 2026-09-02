@@ -35,7 +35,7 @@ export async function verifyMarkupPinHash(pin: string, stored: string) {
 export async function isMarkupPinValid(pin: string) {
   const config = getConfig();
   const normalizedPin = pin.trim();
-  const storedPin = config.MARKUP_ADMIN_PIN?.trim();
+  const storedPin = config.MARKUP_ADMIN_PIN?.trim() || config.STAFF_SETTINGS_PIN?.trim();
 
   if (config.MARKUP_ADMIN_PIN_HASH?.startsWith("scrypt:")) {
     return verifyMarkupPinHash(normalizedPin, config.MARKUP_ADMIN_PIN_HASH);
@@ -46,6 +46,15 @@ export async function isMarkupPinValid(pin: string) {
   }
 
   return false;
+}
+
+export function isMarkupPinConfigured() {
+  const config = getConfig();
+  return Boolean(
+    config.MARKUP_ADMIN_PIN_HASH?.startsWith("scrypt:") ||
+      config.MARKUP_ADMIN_PIN?.trim() ||
+      config.STAFF_SETTINGS_PIN?.trim(),
+  );
 }
 
 export function createMarkupUnlockToken() {
