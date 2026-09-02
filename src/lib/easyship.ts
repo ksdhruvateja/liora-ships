@@ -44,12 +44,28 @@ export type PurchasedLabel = {
   trackingNumber: string | null;
 };
 
+export type WalletBalance = {
+  balanceCents: number;
+  availableBalanceCents: number;
+  currency: string;
+};
+
+export type AddWalletCreditResult =
+  | { status: 201; transactionReference: string | null }
+  | { status: 202 }
+  | { status: Exclude<number, 201 | 202>; error: string };
+
 export type EasyshipClient = {
   requestRates: (input: {
     origin: AddressInput;
     destination: AddressInput;
     parcel: ParcelInput;
   }) => Promise<EasyshipRate[]>;
+  getWalletBalance: () => Promise<WalletBalance>;
+  addWalletCredit: (input: {
+    amountDollars: number;
+    paymentSourceId: string;
+  }) => Promise<AddWalletCreditResult>;
   createShipmentAndBuyLabel: (input: {
     origin: AddressInput;
     destination: AddressInput;
@@ -58,7 +74,6 @@ export type EasyshipClient = {
     customerEmail: string;
     platformOrderNumber: string;
   }) => Promise<PurchasedLabel>;
-  refreshPurchasedLabel: (easyshipShipmentId: string) => Promise<PurchasedLabel>;
 };
 
 function toEasyshipAddress(address: AddressInput) {
@@ -128,7 +143,7 @@ function labelShippingSettings(parcel: ParcelInput) {
     buy_label: true,
     buy_label_synchronous: true,
     printing_options: {
-      format: "url",
+      format: "pdf",
       label: "4x6",
       commercial_invoice: "A4",
       packing_slip: "4x6",
@@ -168,52 +183,27 @@ function mapRate(raw: EasyshipRateRaw): EasyshipRate | null {
   };
 }
 
-function trackingFromShipment(shipment: Record<string, unknown>): string | null {
-  const trackings = shipment.trackings as Array<{ tracking_number?: string }> | undefined;
-  const fromList = trackings?.find((row) => row.tracking_number)?.tracking_number;
-  if (fromList) return fromList;
-  if (typeof shipment.tracking_number === "string" && shipment.tracking_number) {
-    return shipment.tracking_number;
-  }
-  const courier = shipment.courier as { tracking_number?: string } | undefined;
-  return courier?.tracking_number || null;
-}
-
-function documentHref(doc: Record<string, unknown>): string | null {
-  if (typeof doc.url === "string" && doc.url.trim()) return doc.url.trim();
-  if (typeof doc.label_url === "string" && doc.label_url.trim()) return doc.label_url.trim();
-  const encoded = doc.base64_encoded_strings;
-  if (Array.isArray(encoded) && typeof encoded[0] === "string" && encoded[0]) {
-    const mime = typeof doc.mime_type === "string" && doc.mime_type ? doc.mime_type : "application/pdf";
-    return `data:${mime};base64,${encoded[0]}`;
-  }
-  return null;
-}
-
-export function extractLabel(shipment: Record<string, unknown>): PurchasedLabel {
+function extractLabel(shipment: Record<string, unknown>): PurchasedLabel {
   const easyshipShipmentId = String(
     shipment.easyship_shipment_id ?? shipment.id ?? "",
   );
-  const documents = (
-    (shipment.shipping_documents as Record<string, unknown>[] | undefined) ??
-    (shipment.documents as Record<string, unknown>[] | undefined) ??
-    []
-  );
+  const tracking =
+    (shipment.trackings as { tracking_number?: string }[] | undefined)?.[0]
+      ?.tracking_number ??
+    (typeof shipment.tracking_number === "string"
+      ? shipment.tracking_number
+      : null);
+
+  const documents = (shipment.shipping_documents as
+    | { category?: string; url?: string }[]
+    | undefined) ?? [];
   const labelDoc =
-    documents.find((doc) => doc.category === "label" || doc.type === "label") ??
-    documents.find((doc) => documentHref(doc)) ??
-    documents[0];
-  const directUrl =
-    (typeof shipment.label_url === "string" && shipment.label_url) ||
-    (typeof shipment.label_state === "string" && shipment.label_state.startsWith("http")
-      ? shipment.label_state
-      : "") ||
-    null;
+    documents.find((doc) => doc.category === "label") ?? documents[0];
 
   return {
     easyshipShipmentId,
-    labelUrl: (labelDoc ? documentHref(labelDoc) : null) || directUrl,
-    trackingNumber: trackingFromShipment(shipment),
+    labelUrl: labelDoc?.url ?? null,
+    trackingNumber: tracking ?? null,
   };
 }
 
@@ -225,7 +215,7 @@ export function createEasyshipClient(options: {
   const fetchImpl = options.fetchImpl ?? fetch;
   const baseUrl = options.baseUrl.replace(/\/$/, "");
 
-  async function easyshipFetch<T>(path: string, init: RequestInit): Promise<T> {
+  async function easyshipFetchRaw(path: string, init: RequestInit) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20_000);
     try {
@@ -234,22 +224,14 @@ export function createEasyshipClient(options: {
         signal: controller.signal,
         headers: {
           Authorization: `Bearer ${options.apiKey}`,
+          "Content-Type": "application/json",
           Accept: "application/json",
-          ...(init.method && init.method !== "GET" ? { "Content-Type": "application/json" } : {}),
           ...(init.headers ?? {}),
         },
       });
       const text = await response.text();
       const body = text ? JSON.parse(text) : {};
-      if (!response.ok) {
-        const details = Array.isArray(body?.error?.details)
-          ? body.error.details.filter(Boolean).join("; ")
-          : "";
-        const message = [body?.error?.message, details].filter(Boolean).join(" — ")
-          || `Shipping request failed (${response.status})`;
-        throw new Error(message);
-      }
-      return body as T;
+      return { response, body };
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error("Carrier request timed out");
@@ -260,57 +242,66 @@ export function createEasyshipClient(options: {
     }
   }
 
-  async function readShipment(easyshipShipmentId: string) {
-    const body = await easyshipFetch<{ shipment?: Record<string, unknown> }>(
-      `/shipments/${encodeURIComponent(easyshipShipmentId)}?format=url&label=4x6`,
-      { method: "GET" },
-    );
-    const shipment = body.shipment ?? (body as Record<string, unknown>);
-    const label = extractLabel(shipment);
-    if (!label.easyshipShipmentId) label.easyshipShipmentId = easyshipShipmentId;
-    return label;
-  }
-
-  async function requestLabel(easyshipShipmentId: string, courierServiceId?: string) {
-    const labeled = await easyshipFetch<{ shipment?: Record<string, unknown> }>(
-      `/shipments/${encodeURIComponent(easyshipShipmentId)}/labels`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          ...(courierServiceId ? { courier_service_id: courierServiceId } : {}),
-          printing_options: {
-            format: "url",
-            label: "4x6",
-          },
-        }),
-      },
-    );
-    const label = extractLabel(labeled.shipment ?? (labeled as Record<string, unknown>));
-    if (!label.easyshipShipmentId) label.easyshipShipmentId = easyshipShipmentId;
-    return label;
-  }
-
-  async function waitForPurchasedLabel(
-    easyshipShipmentId: string,
-    courierServiceId?: string,
-  ) {
-    let latest = await readShipment(easyshipShipmentId);
-    if (latest.labelUrl) return latest;
-    try {
-      latest = await requestLabel(easyshipShipmentId, courierServiceId);
-      if (latest.labelUrl) return latest;
-    } catch {
-      // Label may already have been purchased; keep polling the shipment.
+  async function easyshipFetch<T>(path: string, init: RequestInit): Promise<T> {
+    const { response, body } = await easyshipFetchRaw(path, init);
+    if (!response.ok) {
+      const details = Array.isArray(body?.error?.details)
+        ? body.error.details.filter(Boolean).join("; ")
+        : "";
+      const message = [body?.error?.message, details].filter(Boolean).join(" — ")
+        || `Shipping request failed (${response.status})`;
+      throw new Error(message);
     }
-    for (let attempt = 0; attempt < 4; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      latest = await readShipment(easyshipShipmentId);
-      if (latest.labelUrl) return latest;
-    }
-    return latest;
+    return body as T;
   }
 
   return {
+    async getWalletBalance() {
+      const body = await easyshipFetch<{
+        account?: {
+          balance?: number;
+          available_balance?: number;
+          currency?: string;
+        };
+      }>("/account", { method: "GET" });
+      const account = body.account ?? {};
+      const currency = account.currency ?? "USD";
+      return {
+        balanceCents: Math.round((account.balance ?? 0) * 100),
+        availableBalanceCents: Math.round((account.available_balance ?? account.balance ?? 0) * 100),
+        currency,
+      };
+    },
+
+    async addWalletCredit({ amountDollars, paymentSourceId }) {
+      const { response, body } = await easyshipFetchRaw("/account/credit", {
+        method: "POST",
+        body: JSON.stringify({
+          payment_source_id: paymentSourceId,
+          amount: amountDollars,
+        }),
+      });
+      if (response.status === 201) {
+        const record = body.credit ?? body.transaction ?? body;
+        const transactionReference =
+          (typeof record?.id === "string" && record.id) ||
+          (typeof record?.transaction_id === "string" && record.transaction_id) ||
+          (typeof body.id === "string" && body.id) ||
+          (typeof body.transaction_id === "string" && body.transaction_id) ||
+          null;
+        return { status: 201 as const, transactionReference };
+      }
+      if (response.status === 202) {
+        return { status: 202 as const };
+      }
+      const details = Array.isArray(body?.error?.details)
+        ? body.error.details.filter(Boolean).join("; ")
+        : "";
+      const message = [body?.error?.message, details].filter(Boolean).join(" — ")
+        || `Wallet recharge failed (${response.status})`;
+      return { status: response.status, error: message };
+    },
+
     async requestRates({ origin, destination, parcel }) {
       const parcels = toEasyshipParcels(parcel, origin.countryAlpha2);
       const body = await easyshipFetch<{ rates?: EasyshipRateRaw[] }>(
@@ -367,17 +358,36 @@ export function createEasyshipClient(options: {
 
       const shipment = created.shipment ?? {};
       let label = extractLabel(shipment);
+
+      if (!label.labelUrl || !label.trackingNumber) {
+        const shipmentId =
+          label.easyshipShipmentId || String(shipment.easyship_shipment_id ?? "");
+        if (shipmentId) {
+          try {
+            const labeled = await easyshipFetch<{
+              shipment?: Record<string, unknown>;
+            }>(`/shipments/${encodeURIComponent(shipmentId)}/labels`, {
+              method: "POST",
+              body: JSON.stringify({
+                courier_service_id: courierServiceId,
+                printing_options: {
+                  format: "pdf",
+                  label: "4x6",
+                },
+              }),
+            });
+            label = extractLabel(labeled.shipment ?? labeled as Record<string, unknown>);
+            if (!label.easyshipShipmentId) label.easyshipShipmentId = shipmentId;
+          } catch {
+            // Synchronous label endpoint is beta; shipment create with buy_label may already suffice.
+          }
+        }
+      }
+
       if (!label.easyshipShipmentId) {
         throw new Error("Label purchase did not return a shipment id");
       }
-      if (!label.labelUrl) {
-        label = await waitForPurchasedLabel(label.easyshipShipmentId, courierServiceId);
-      }
       return label;
-    },
-
-    async refreshPurchasedLabel(easyshipShipmentId) {
-      return waitForPurchasedLabel(easyshipShipmentId);
     },
   };
 }

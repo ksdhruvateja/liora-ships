@@ -1,5 +1,7 @@
 process.env.SKIP_ENV_VALIDATION = "0";
 process.env.EASYSHIP_API_KEY = process.env.EASYSHIP_API_KEY || "easyship_test_key";
+process.env.EASYSHIP_PAYMENT_SOURCE_ID =
+  process.env.EASYSHIP_PAYMENT_SOURCE_ID || "easyship_test_payment_source";
 process.env.EASYSHIP_BASE_URL =
   process.env.EASYSHIP_BASE_URL || "https://public-api.easyship.com/2024-09";
 process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "sk_test_forezships";

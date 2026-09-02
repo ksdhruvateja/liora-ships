@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { formatMoney } from "@/lib/money";
 import { splitDisplayCourierName } from "@/lib/courier-names";
+import { EMPLOYEE_RECHARGE_BLOCKED_MESSAGE } from "@/lib/easyship-errors";
 import type { PublicShipment } from "@/lib/public-shipment";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Liora Labs Shipping";
@@ -71,6 +72,11 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
           return;
         }
 
+        if (current.status === "RECHARGE_BLOCKED_BY_CARD_ISSUER") {
+          setGaveUp(true);
+          return;
+        }
+
         if (current.status === "FAILED" && isPaymentFailure(current)) {
           setGaveUp(true);
           return;
@@ -127,6 +133,16 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
   }
   if (!shipment) {
     return <p className="text-muted">Loading your shipment…</p>;
+  }
+
+  if (shipment.status === "RECHARGE_BLOCKED_BY_CARD_ISSUER") {
+    return (
+      <div className="surface mx-auto max-w-2xl p-6 sm:p-8">
+        <h1 className="text-3xl font-extrabold tracking-tight">Payment could not be completed</h1>
+        <p className="mt-3 max-w-xl text-muted">{EMPLOYEE_RECHARGE_BLOCKED_MESSAGE}</p>
+        <p className="mt-4 text-sm text-muted">Reference: {shipment.id}</p>
+      </div>
+    );
   }
 
   if (shipment.status === "FAILED" && (gaveUp || isPaymentFailure(shipment))) {

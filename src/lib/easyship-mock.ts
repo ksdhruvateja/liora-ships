@@ -36,19 +36,25 @@ export function createMockEasyshipClient(): EasyshipClient {
         },
       ];
     },
+    async getWalletBalance() {
+      return {
+        balanceCents: 100_000,
+        availableBalanceCents: 100_000,
+        currency: "USD",
+      };
+    },
+    async addWalletCredit({ amountDollars }) {
+      if (amountDollars <= 0) {
+        return { status: 201 as const, transactionReference: "mock-recharge" };
+      }
+      return { status: 201 as const, transactionReference: `mock-recharge-${amountDollars}` };
+    },
     async createShipmentAndBuyLabel({ platformOrderNumber }) {
       const trackingNumber = `FZ${platformOrderNumber.slice(-8).toUpperCase()}`;
       return {
         easyshipShipmentId: `MOCK-${platformOrderNumber}`,
         labelUrl: `mock://label/${platformOrderNumber}`,
         trackingNumber,
-      };
-    },
-    async refreshPurchasedLabel(easyshipShipmentId) {
-      return {
-        easyshipShipmentId,
-        labelUrl: `mock://label/${easyshipShipmentId}`,
-        trackingNumber: easyshipShipmentId.replace(/^MOCK-/, "FZ"),
       };
     },
   };

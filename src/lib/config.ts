@@ -40,6 +40,10 @@ const envSchema = z.object({
     .string()
     .url()
     .default("https://public-api.easyship.com/2024-09"),
+  EASYSHIP_PAYMENT_SOURCE_ID: z.preprocess(emptyToUndefined, z.string().optional()).default(""),
+  EASYSHIP_MIN_RECHARGE: z.coerce.number().positive().default(50),
+  EASYSHIP_MAX_RECHARGE: z.coerce.number().positive().default(1000),
+  EASYSHIP_RECHARGE_BUFFER: z.coerce.number().min(0).default(10),
   STRIPE_SECRET_KEY: z.string().min(1, "STRIPE_SECRET_KEY is required"),
   STRIPE_WEBHOOK_SECRET: optionalString,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: optionalString,
@@ -112,6 +116,10 @@ export function getConfig(): AppConfig {
         EASYSHIP_BASE_URL:
           process.env.EASYSHIP_BASE_URL ??
           "https://public-api.easyship.com/2024-09",
+        EASYSHIP_PAYMENT_SOURCE_ID: process.env.EASYSHIP_PAYMENT_SOURCE_ID ?? "",
+        EASYSHIP_MIN_RECHARGE: 50,
+        EASYSHIP_MAX_RECHARGE: 1000,
+        EASYSHIP_RECHARGE_BUFFER: 10,
         STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "build-placeholder",
         STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? "",
         DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://localhost:5432/forezships",

@@ -5,6 +5,13 @@ import { createEasyshipClient, type EasyshipClient } from "./easyship";
 import { sendOpsAlert } from "./alerts";
 import { sendLabelEmail } from "./email";
 import { rememberShippedContacts } from "./contacts";
+import { ensureEasyshipWalletFunded } from "./easyship-recharge";
+import {
+  EasyshipRechargeError,
+  EMPLOYEE_RECHARGE_BLOCKED_MESSAGE,
+  EASYSHIP_RECHARGE_UNCERTAIN,
+  RECHARGE_BLOCKED_BY_CARD_ISSUER,
+} from "./easyship-errors";
 import type { AddressInput, ParcelInput } from "./validations";
 
 export type FulfillmentDeps = {
@@ -107,33 +114,25 @@ export async function purchaseLabelForShipment(
       throw new Error(`Shipment ${shipmentId} not found`);
     }
     if (existing.status === "LABEL_CREATED") {
-      let ready = existing;
-      if (!ready.labelUrl && ready.easyshipShipmentId && easyship.refreshPurchasedLabel) {
-        const purchased = await easyship.refreshPurchasedLabel(ready.easyshipShipmentId);
-        if (purchased.labelUrl) {
-          ready = await prisma.shipment.update({
-            where: { id: shipmentId },
-            data: {
-              labelUrl: purchased.labelUrl,
-              trackingNumber: purchased.trackingNumber ?? ready.trackingNumber,
-              lastError: null,
-            },
-          });
-        }
-      }
       try {
         await rememberShippedContacts({
-          customerEmail: ready.customerEmail,
-          originAddress: ready.originAddress,
-          destAddress: ready.destAddress,
+          customerEmail: existing.customerEmail,
+          originAddress: existing.originAddress,
+          destAddress: existing.destAddress,
         });
       } catch (error) {
         console.error("Could not save shipped contacts", error);
       }
-      return ensureLabelEmailSent(ready, deps);
+      return ensureLabelEmailSent(existing, deps);
     }
     if (existing.status === "REFUNDED") {
       throw new Error(`Shipment ${shipmentId} was refunded`);
+    }
+    if (existing.status === "RECHARGE_BLOCKED_BY_CARD_ISSUER") {
+      throw new EasyshipRechargeError(
+        EMPLOYEE_RECHARGE_BLOCKED_MESSAGE,
+        RECHARGE_BLOCKED_BY_CARD_ISSUER,
+      );
     }
     if (existing.status === "FAILED") {
       await prisma.shipment.update({
@@ -152,31 +151,31 @@ export async function purchaseLabelForShipment(
       const destination = existing.destAddress as AddressInput;
       const parcel = existing.parcel as ParcelInput;
 
-      let purchased;
-      if (existing.easyshipShipmentId && easyship.refreshPurchasedLabel) {
-        purchased = await easyship.refreshPurchasedLabel(existing.easyshipShipmentId);
-      } else {
-        purchased = await easyship.createShipmentAndBuyLabel({
-          origin,
-          destination,
-          parcel,
-          courierServiceId: existing.easyshipRateId,
-          customerEmail: existing.customerEmail,
-          platformOrderNumber: existing.id,
-        });
-      }
-
-      if (purchased.easyshipShipmentId && !purchased.labelUrl) {
-        await prisma.shipment.update({
+      if (existing.easyshipShipmentId && existing.labelUrl) {
+        const updated = await prisma.shipment.update({
           where: { id: shipmentId },
           data: {
-            easyshipShipmentId: purchased.easyshipShipmentId,
-            trackingNumber: purchased.trackingNumber,
-            lastError: "Waiting for carrier label PDF",
+            status: "LABEL_CREATED",
+            lastError: null,
           },
         });
-        throw new Error("Label PDF not ready yet");
+        return ensureLabelEmailSent(updated, deps);
       }
+
+      await ensureEasyshipWalletFunded({
+        shipmentId,
+        labelCostCents: existing.baseCostCents,
+        easyship,
+      });
+
+      const purchased = await easyship.createShipmentAndBuyLabel({
+        origin,
+        destination,
+        parcel,
+        courierServiceId: existing.easyshipRateId,
+        customerEmail: existing.customerEmail,
+        platformOrderNumber: existing.id,
+      });
 
       const updated = await prisma.shipment.update({
         where: { id: shipmentId },
@@ -201,8 +200,39 @@ export async function purchaseLabelForShipment(
 
       return ensureLabelEmailSent(updated, deps);
     } catch (error) {
+      if (error instanceof EasyshipRechargeError) {
+        if (error.code === RECHARGE_BLOCKED_BY_CARD_ISSUER) {
+          await prisma.shipment.update({
+            where: { id: shipmentId },
+            data: {
+              status: "RECHARGE_BLOCKED_BY_CARD_ISSUER",
+              lastError: RECHARGE_BLOCKED_BY_CARD_ISSUER,
+            },
+          });
+          await alert(
+            "Easyship wallet recharge blocked by card issuer",
+            `Shipment ${shipmentId} (${existing.customerEmail}) paid ${existing.customerTotalCents} cents, but automatic Easyship wallet recharge requires card issuer authorization (HTTP 202). Configure an off-session payment source in Easyship.`,
+          );
+          throw error;
+        }
+        if (error.code === EASYSHIP_RECHARGE_UNCERTAIN) {
+          await prisma.shipment.update({
+            where: { id: shipmentId },
+            data: {
+              status: "PAID",
+              lastError: error.code,
+            },
+          });
+          await alert(
+            "Easyship wallet recharge uncertain",
+            `Shipment ${shipmentId} (${existing.customerEmail}) may have a pending automatic wallet recharge. Check Easyship before retrying.`,
+          );
+          throw error;
+        }
+      }
+
       const message = error instanceof Error ? error.message : String(error);
-      const retryable = /timed out|timeout|abort|504|502|503|network|not ready yet/i.test(message);
+      const retryable = /timed out|timeout|abort|504|502|503|network/i.test(message);
       const failedEnough = attempted.fulfillmentAttempts >= (retryable ? 6 : 4);
       await prisma.shipment.update({
         where: { id: shipmentId },
@@ -253,7 +283,7 @@ export async function reconcileStuckPaidShipments(deps: FulfillmentDeps = {}) {
   const stuck = [
     ...paidStuck,
     ...failedPaid.filter((row) => !paymentFailure.test(row.lastError ?? "")),
-  ];
+  ].filter((row) => row.status !== "RECHARGE_BLOCKED_BY_CARD_ISSUER");
 
   const results: { id: string; ok: boolean; error?: string }[] = [];
   for (const shipment of stuck) {

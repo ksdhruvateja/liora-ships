@@ -38,7 +38,11 @@ export async function handleStripeEvent(
     throw new Error(`Shipment ${shipmentId} not found for payment ${intent.id}`);
   }
 
-  if (shipment.status === "LABEL_CREATED" || shipment.status === "REFUNDED") {
+  if (
+    shipment.status === "LABEL_CREATED" ||
+    shipment.status === "REFUNDED" ||
+    shipment.status === "RECHARGE_BLOCKED_BY_CARD_ISSUER"
+  ) {
     return { handled: true, shipmentId, skipped: true, status: shipment.status };
   }
 
@@ -88,10 +92,11 @@ export async function handleStripeEvent(
     return { handled: true, shipmentId, status: "LABEL_CREATED" };
   } catch (error) {
     console.error("Label purchase after payment will retry", error);
+    const latest = await prisma.shipment.findUnique({ where: { id: shipmentId } });
     return {
       handled: true,
       shipmentId,
-      status: "PAID",
+      status: latest?.status ?? "PAID",
       error: error instanceof Error ? error.message : String(error),
     };
   }

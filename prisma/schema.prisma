@@ -15,6 +15,7 @@ enum ShipmentStatus {
   LABEL_CREATED
   FAILED
   REFUNDED
+  RECHARGE_BLOCKED_BY_CARD_ISSUER
 }
 
 enum MarkupType {
@@ -97,4 +98,16 @@ model CourierBrandMap {
   updatedAt   DateTime @updatedAt
 
   @@index([active, matchType])
+}
+
+model EasyshipRecharge {
+  id                   String   @id @default(cuid())
+  shipmentId           String   @unique
+  amountCents          Int
+  status               String
+  transactionReference String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([status, updatedAt])
 }

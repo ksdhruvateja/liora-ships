@@ -4,12 +4,61 @@ import type { Shipment } from "@prisma/client";
 
 const store = vi.hoisted(() => {
   const rows = new Map<string, Shipment>();
-  return { rows };
+  const recharges = new Map<string, Record<string, unknown>>();
+  return { rows, recharges };
 });
+
+import type { EasyshipClient } from "@/lib/easyship";
+
+function walletEasyship(extra: Partial<EasyshipClient> = {}): EasyshipClient {
+  return {
+    requestRates: vi.fn(),
+    getWalletBalance: vi.fn().mockResolvedValue({
+      balanceCents: 1_000_000,
+      availableBalanceCents: 1_000_000,
+      currency: "USD",
+    }),
+    addWalletCredit: vi.fn(),
+    createShipmentAndBuyLabel: vi.fn(),
+    ...extra,
+  };
+}
 
 vi.mock("@/lib/db", () => {
   const prisma = {
     $executeRawUnsafe: vi.fn().mockRejectedValue(new Error("no pg in tests")),
+    easyshipRecharge: {
+      findUnique: vi.fn(async ({ where: { shipmentId } }: { where: { shipmentId: string } }) => {
+        return store.recharges.get(shipmentId) ?? null;
+      }),
+      upsert: vi.fn(async ({
+        where: { shipmentId },
+        create,
+        update,
+      }: {
+        where: { shipmentId: string };
+        create: Record<string, unknown>;
+        update: Record<string, unknown>;
+      }) => {
+        const existing = store.recharges.get(shipmentId);
+        const next = { ...(existing ?? create), ...update, shipmentId };
+        store.recharges.set(shipmentId, next);
+        return next;
+      }),
+      update: vi.fn(async ({
+        where: { shipmentId },
+        data,
+      }: {
+        where: { shipmentId: string };
+        data: Record<string, unknown>;
+      }) => {
+        const existing = store.recharges.get(shipmentId);
+        if (!existing) throw new Error("missing recharge");
+        const next = { ...existing, ...data };
+        store.recharges.set(shipmentId, next);
+        return next;
+      }),
+    },
     shipment: {
       findUnique: vi.fn(async ({ where: { id } }: { where: { id: string } }) => {
         return store.rows.get(id) ?? null;
@@ -115,18 +164,18 @@ function succeededEvent(): Stripe.Event {
 describe("stripe webhook idempotency", () => {
   beforeEach(() => {
     store.rows.clear();
+    store.recharges.clear();
     store.rows.set("ship_1", quotedShipment());
   });
 
   it("purchases the label once when the same succeeded event is delivered twice", async () => {
-    const easyship = {
-      requestRates: vi.fn(),
+    const easyship = walletEasyship({
       createShipmentAndBuyLabel: vi.fn().mockResolvedValue({
         easyshipShipmentId: "ES_SECRET",
         labelUrl: "https://provider.example/labels/secret.pdf",
         trackingNumber: "1Z999",
       }),
-    };
+    });
     const sendEmail = vi.fn().mockResolvedValue({ id: "email_1" });
     const alert = vi.fn();
     const event = succeededEvent();
@@ -144,10 +193,9 @@ describe("stripe webhook idempotency", () => {
   });
 
   it("marks FAILED on payment_intent.payment_failed without buying a label", async () => {
-    const easyship = {
-      requestRates: vi.fn(),
+    const easyship = walletEasyship({
       createShipmentAndBuyLabel: vi.fn(),
-    };
+    });
     await handleStripeEvent(
       {
         ...succeededEvent(),
@@ -175,14 +223,13 @@ describe("stripe webhook idempotency", () => {
       lastError: "origin_address.company_name can't be blank",
       fulfillmentAttempts: 4,
     });
-    const easyship = {
-      requestRates: vi.fn(),
+    const easyship = walletEasyship({
       createShipmentAndBuyLabel: vi.fn().mockResolvedValue({
         easyshipShipmentId: "ES_SECRET",
         labelUrl: "https://provider.example/labels/secret.pdf",
         trackingNumber: "1Z999",
       }),
-    };
+    });
     const sendEmail = vi.fn().mockResolvedValue({ id: "email_1" });
     const alert = vi.fn();
 
