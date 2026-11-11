@@ -15,6 +15,12 @@ export async function GET(
 ) {
   const config = getConfig();
   const shipment = await prisma.shipment.findUnique({ where: { id: params.id } });
+  if (shipment && (shipment.cancelledAt || shipment.status === "REFUNDED")) {
+    return NextResponse.json(
+      { error: "This label was cancelled and is no longer valid. Don’t use it to ship." },
+      { status: 410, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   if (!shipment || shipment.status !== "LABEL_CREATED") {
     return NextResponse.json({ error: "Label is not available yet." }, { status: 404 });
   }
@@ -43,7 +49,8 @@ export async function GET(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "private, max-age=300",
+        // no-store: a cancelled label must stop downloading immediately, even from cache.
+        "Cache-Control": "private, no-store",
       },
     });
   }
@@ -61,7 +68,8 @@ export async function GET(
     headers: {
       "Content-Type": file.contentType,
       "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "private, max-age=300",
+      // no-store: a cancelled label must stop downloading immediately, even from cache.
+      "Cache-Control": "private, no-store",
     },
   });
 }

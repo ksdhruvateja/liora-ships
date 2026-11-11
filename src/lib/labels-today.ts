@@ -24,6 +24,9 @@ export type TodayLabelRow = {
   createdBy: string | null;
   labelDownloadUrl: string | null;
   trackingUrl: string | null;
+  canCancel: boolean;
+  refundStatus: string;
+  refundCents: number | null;
 };
 
 function addressContact(address: unknown) {
@@ -38,7 +41,7 @@ export function toTodayLabelRow(
   appUrl: string,
   role: StaffRole,
 ): TodayLabelRow {
-  const ready = shipment.status === "LABEL_CREATED";
+  const ready = shipment.status === "LABEL_CREATED" && !shipment.cancelledAt;
   return {
     id: shipment.id,
     generatedAt: shipment.labelGeneratedAt?.toISOString() ?? null,
@@ -65,5 +68,11 @@ export function toTodayLabelRow(
       ready && shipment.trackingNumber
         ? `${appUrl}/track/${encodeURIComponent(shipment.trackingNumber)}`
         : null,
+    // Staff may cancel outside the customer window; Easyship still decides if it is voidable.
+    canCancel:
+      (shipment.status === "LABEL_CREATED" && Boolean(shipment.easyshipShipmentId) && !shipment.cancelledAt) ||
+      (Boolean(shipment.cancelledAt) && shipment.refundStatus === "FAILED"),
+    refundStatus: shipment.refundStatus,
+    refundCents: shipment.refundCents,
   };
 }

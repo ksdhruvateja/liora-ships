@@ -16,10 +16,12 @@ function LabelActions({
   row,
   isAdmin,
   onRetry,
+  onCancel,
 }: {
   row: TodayLabelRow;
   isAdmin: boolean;
   onRetry: (id: string) => void;
+  onCancel: (row: TodayLabelRow) => void;
 }) {
   async function copyTracking() {
     if (!row.trackingNumber) return;
@@ -27,7 +29,7 @@ function LabelActions({
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-x-3 gap-y-1 whitespace-nowrap">
       {row.labelDownloadUrl ? (
         <>
           <a href={row.labelDownloadUrl} target="_blank" rel="noreferrer" className="text-violet-700 underline">
@@ -64,6 +66,16 @@ function LabelActions({
         <button type="button" className="text-violet-700 underline" onClick={() => onRetry(row.id)}>
           Retry pickup
         </button>
+      ) : null}
+      {row.canCancel ? (
+        <button type="button" className="text-red-700 underline" onClick={() => onCancel(row)}>
+          {row.refundStatus === "FAILED" ? "Retry refund" : "Cancel & refund"}
+        </button>
+      ) : null}
+      {row.labelStatus === "REFUNDED" ? (
+        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+          Refunded {row.refundCents != null ? formatMoney(row.refundCents, "USD") : ""}
+        </span>
       ) : null}
     </div>
   );
@@ -124,6 +136,24 @@ export function TodaysLabelsView() {
       setError(data.error ?? "Pickup retry failed");
       return;
     }
+    void load();
+  }
+
+  async function cancelLabelRow(row: TodayLabelRow) {
+    const who = row.recipientName ?? row.customerEmail;
+    const ok = window.confirm(
+      `Cancel label ${row.trackingNumber ?? row.id} for ${who} and refund ${formatMoney(row.customerPriceCents, "USD")} (minus any cancellation fee)?\n\nThe label stops working immediately. This can’t be undone.`,
+    );
+    if (!ok) return;
+    setError(null);
+    const response = await fetch(`/api/shipments/${row.id}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ reason: "Cancelled by staff" }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) setError(data.error ?? "Cancel failed");
     void load();
   }
 
@@ -199,7 +229,7 @@ export function TodaysLabelsView() {
               <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3">Employee</th>
               {showProfit ? <th className="px-3 py-3">Profit</th> : null}
-              <th className="px-3 py-3">Actions</th>
+              <th className="min-w-[13rem] px-3 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -220,8 +250,8 @@ export function TodaysLabelsView() {
                     {row.markupCents != null ? formatMoney(row.markupCents, "USD") : "—"}
                   </td>
                 ) : null}
-                <td className="px-3 py-3">
-                  <LabelActions row={row} isAdmin={role === "admin"} onRetry={retryPickup} />
+                <td className="min-w-[13rem] px-3 py-3">
+                  <LabelActions row={row} isAdmin={role === "admin"} onRetry={retryPickup} onCancel={cancelLabelRow} />
                 </td>
               </tr>
             ))}
@@ -240,7 +270,7 @@ export function TodaysLabelsView() {
             <p className="text-sm">Pickup: {pickupTimeLabel(row)}</p>
             <p className="mt-2 font-semibold">{formatMoney(row.customerPriceCents, "USD")}</p>
             <div className="mt-3">
-              <LabelActions row={row} isAdmin={role === "admin"} onRetry={retryPickup} />
+              <LabelActions row={row} isAdmin={role === "admin"} onRetry={retryPickup} onCancel={cancelLabelRow} />
             </div>
           </article>
         ))}

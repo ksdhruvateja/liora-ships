@@ -9,7 +9,7 @@ import {
   MARKUP_UNLOCK_HEADER,
   verifyMarkupUnlockToken,
 } from "@/lib/markup-pin";
-import { validateShippingMarkupSettings } from "@/lib/markup";
+import { MarkupError, validateShippingMarkupSettings } from "@/lib/markup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
-  const settings = await getShippingMarkupSettings();
+  let settings;
+  try {
+    settings = await getShippingMarkupSettings();
+  } catch (error) {
+    console.error("Could not load markup settings", error);
+    return NextResponse.json(
+      { error: "Couldn’t load the current markup. Check the database connection and try again." },
+      { status: 503 },
+    );
+  }
   const example = priceShipping(EXAMPLE_BASE_CENTS, settings);
   return NextResponse.json({
     settings: {
@@ -70,7 +79,13 @@ export async function PUT(request: Request) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid markup settings.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (error instanceof MarkupError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    console.error("Could not save markup settings", error);
+    return NextResponse.json(
+      { error: "The markup wasn’t saved — the database couldn’t be reached. Prices are unchanged. Try again." },
+      { status: 503 },
+    );
   }
 }

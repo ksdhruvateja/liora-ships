@@ -12,7 +12,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "baseCents is required." }, { status: 400 });
   }
 
-  const settings = await getShippingMarkupSettings();
+  let settings;
+  try {
+    settings = await getShippingMarkupSettings();
+  } catch {
+    return NextResponse.json({ error: "Pricing is temporarily unavailable." }, { status: 503 });
+  }
   const priced = priceShipping(Math.round(baseCents), settings);
   return NextResponse.json({
     customer_shipping_price: priced.customerTotalCents / 100,

@@ -92,6 +92,10 @@ const envSchema = z.object({
   MARKUP_ADMIN_PIN: z.preprocess(emptyToUndefined, z.string().optional().default("")),
   MARKUP_ADMIN_PIN_HASH: z.preprocess(emptyToUndefined, z.string().optional().default("")),
   BUSINESS_TIMEZONE: z.string().min(1).default("America/New_York"),
+  // Label cancellation: customers may cancel an unused label this many days after purchase.
+  CANCEL_WINDOW_DAYS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(0).max(180).default(30)),
+  // Optional fee (in cents) kept from the refund when a label is cancelled. 0 = full refund.
+  CANCELLATION_FEE_CENTS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(0).default(0)),
   FOREZSHIPS_MOCK: z.string().optional().default(""),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
@@ -158,6 +162,8 @@ export function getConfig(): AppConfig {
         MARKUP_ADMIN_PIN: "",
         MARKUP_ADMIN_PIN_HASH: "",
         BUSINESS_TIMEZONE: "America/New_York",
+        CANCEL_WINDOW_DAYS: 30,
+        CANCELLATION_FEE_CENTS: 0,
         FOREZSHIPS_MOCK: "",
         NODE_ENV: "development",
         appName: "Liora Labs Shipping",

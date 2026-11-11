@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { MotionRoot } from "@/components/motion/MotionRoot";
 import { ScrollProgress } from "@/components/motion/ScrollProgress";
 import "./globals.css";
 
-const plusJakarta = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-plus-jakarta",
+  variable: "--font-sans",
+  display: "swap",
 });
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Liora Labs Shipping";
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     default: `${appName} — Shipping rates & labels`,
     template: `%s · ${appName}`,
   },
-  description: "Get a rate, pay once, and download your shipping label. Labels once fetched cannot be returned.",
+  description: "Get live US shipping rates, pay once, and download your label in minutes. Unused labels can be cancelled for a refund.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -37,7 +38,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${plusJakarta.variable} bg-paper font-sans text-ink antialiased`}>
+      <body className={`${inter.variable} bg-paper font-sans text-ink antialiased`}>
         <MotionRoot>
           <ScrollProgress />
           <Header />

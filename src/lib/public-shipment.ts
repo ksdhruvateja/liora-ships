@@ -2,6 +2,7 @@ import type { Shipment, ShipmentStatus } from "@prisma/client";
 import { getConfig } from "./config";
 import { formatEstimatedDelivery } from "./courier-names";
 import { canSendLabelEmail, OPERATOR_EMAIL } from "./email";
+import { cancelDeadline, isCancellable, refundAmountCents } from "./cancellation";
 
 export type PublicShipment = {
   id: string;
@@ -27,6 +28,16 @@ export type PublicShipment = {
   notifyEmail: string;
   lastError: string | null;
   labelEmailSent: boolean;
+  /** Label can be cancelled online right now. */
+  canCancel: boolean;
+  cancelDeadline: string | null;
+  /** What the customer would get back if they cancel now (or got back). */
+  refundEstimateCents: number;
+  cancellationFeeCents: number;
+  cancelledAt: string | null;
+  refundStatus: string;
+  refundCents: number | null;
+  refundedAt: string | null;
 };
 
 function estimatedDelivery(shipment: Shipment) {
@@ -36,7 +47,7 @@ function estimatedDelivery(shipment: Shipment) {
 
 export function toPublicShipment(shipment: Shipment): PublicShipment {
   const config = getConfig();
-  const ready = shipment.status === "LABEL_CREATED";
+  const ready = shipment.status === "LABEL_CREATED" && !shipment.cancelledAt;
   return {
     id: shipment.id,
     status: shipment.status,
@@ -67,6 +78,17 @@ export function toPublicShipment(shipment: Shipment): PublicShipment {
         ? shipment.lastError
         : null,
     labelEmailSent: Boolean(shipment.labelEmailSentAt),
+    canCancel: isCancellable(shipment),
+    cancelDeadline:
+      shipment.status === "LABEL_CREATED" && config.CANCEL_WINDOW_DAYS > 0
+        ? cancelDeadline(shipment).toISOString()
+        : null,
+    refundEstimateCents: shipment.refundCents ?? refundAmountCents(shipment),
+    cancellationFeeCents: config.CANCELLATION_FEE_CENTS,
+    cancelledAt: shipment.cancelledAt?.toISOString() ?? null,
+    refundStatus: shipment.refundStatus,
+    refundCents: shipment.refundCents,
+    refundedAt: shipment.refundedAt?.toISOString() ?? null,
   };
 }
 

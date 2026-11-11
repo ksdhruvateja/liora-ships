@@ -69,6 +69,16 @@ model Shipment {
   fulfillmentAttempts   Int            @default(0)
   lastError             String?
   labelEmailSentAt      DateTime?
+  // Label cancellation (void at Easyship + Stripe refund)
+  cancelRequestedAt     DateTime?
+  cancelledAt           DateTime?
+  cancelledBy           String?
+  cancelReason          String?
+  refundStatus          String         @default("NONE")
+  refundCents           Int?
+  stripeRefundId        String?
+  refundedAt            DateTime?
+  refundError           String?
   expiresAt             DateTime
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
@@ -85,6 +95,7 @@ model Shipment {
   @@index([easyshipPickupId])
   @@index([createdBy])
   @@index([pickupStatus])
+  @@index([refundStatus])
 }
 
 model SavedContact {

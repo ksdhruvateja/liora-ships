@@ -1,7 +1,8 @@
 import type { Shipment } from "@prisma/client";
 import { getConfig } from "./config";
 import { prisma } from "./db";
-import { createEasyshipClient, type EasyshipClient } from "./easyship";
+import { type EasyshipClient } from "./easyship";
+import { getEasyship } from "./easyship-client";
 import { sendOpsAlert } from "./alerts";
 import { sendLabelEmail } from "./email";
 import { rememberShippedContacts } from "./contacts";
@@ -25,11 +26,8 @@ export type FulfillmentDeps = {
 
 function clientFromDeps(deps: FulfillmentDeps = {}): EasyshipClient {
   if (deps.easyship) return deps.easyship;
-  const config = getConfig();
-  return createEasyshipClient({
-    apiKey: config.EASYSHIP_API_KEY,
-    baseUrl: config.EASYSHIP_BASE_URL,
-  });
+  // Shared client: the real Easyship API in production, the mock in FOREZSHIPS_MOCK mode.
+  return getEasyship();
 }
 
 async function withShipmentLock<T>(shipmentId: string, fn: () => Promise<T>): Promise<T | "busy"> {

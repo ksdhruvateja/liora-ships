@@ -12,6 +12,7 @@ import type { EasyshipClient } from "@/lib/easyship";
 
 function walletEasyship(extra: Partial<EasyshipClient> = {}): EasyshipClient {
   return {
+    cancelShipment: vi.fn(),
     requestRates: vi.fn(),
     getWalletBalance: vi.fn().mockResolvedValue({
       balanceCents: 1_000_000,
@@ -160,6 +161,15 @@ function quotedShipment(): Shipment {
     fulfillmentAttempts: 0,
     lastError: null,
     labelEmailSentAt: null,
+    cancelRequestedAt: null,
+    cancelledAt: null,
+    cancelledBy: null,
+    cancelReason: null,
+    refundStatus: "NONE",
+    refundCents: null,
+    stripeRefundId: null,
+    refundedAt: null,
+    refundError: null,
     expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
     createdAt: now,
     updatedAt: now,

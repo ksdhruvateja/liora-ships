@@ -67,6 +67,7 @@ export function renderLabelEmailHtml(input: LabelEmailInput, appName: string) {
             <tr>
               <td style="padding:0 32px 28px;color:#5c6480;font-size:13px;">
                 A copy of this label is attached. You can also download it from your ${brand} confirmation page.
+                Need to cancel? Unused labels can be cancelled for a refund from that same page.
               </td>
             </tr>
           </table>

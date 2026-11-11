@@ -2,6 +2,17 @@ import type { EasyshipClient } from "./easyship";
 
 export function createMockEasyshipClient(): EasyshipClient {
   return {
+    async cancelShipment(easyshipShipmentId) {
+      // Shipments tagged "INTRANSIT" simulate a carrier that already scanned the parcel.
+      if (easyshipShipmentId.includes("INTRANSIT")) {
+        return {
+          ok: false as const,
+          reason: "not_cancellable" as const,
+          message: "This Shipment cannot be cancelled. Please contact our support.",
+        };
+      }
+      return { ok: true as const, message: "Shipment successfully cancelled" };
+    },
     async requestRates() {
       return [
         {

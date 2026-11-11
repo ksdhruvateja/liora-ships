@@ -1,11 +1,11 @@
 # Liora Labs Shipping
 
-White-label shipping rates and labels. Customers see **Liora Labs** only. Carrier rates come from Easyship, are marked up, charged through Stripe, and a label is purchased only after payment succeeds.
+Shipping rates and labels under the **Liora Labs** brand, showing each carrier service by name (e.g. UPS Ground, FedEx 2Day). Carrier rates come from Easyship, are marked up, charged through Stripe, and a label is purchased only after payment succeeds.
 
 **Database:** [Neon](https://neon.tech) Postgres  
 **Host:** [Netlify](https://www.netlify.com) (Next.js App Router)
 
-Labels once fetched cannot be returned.
+Unused labels can be cancelled for a refund — see the [Cancellation & Refund Policy](/refund-policy).
 
 ## Architecture
 
@@ -14,7 +14,7 @@ Labels once fetched cannot be returned.
 3. **Fulfillment** — Stripe webhook `POST /api/webhooks/stripe` (and the confirmation page) buy the label only after payment succeeds.
 4. **Delivery** — label PDF is proxied from `/api/shipments/[id]/label`. Tracking lives at `/track/[trackingNumber]`. A copy is emailed from Gmail to the customer.
 
-Markup is controlled by `APP_MARKUP_PERCENT` (default **10**). Optional `APP_MARKUP_FLAT_CENTS` / `APP_MARKUP_CAP_CENTS` set a dollar floor or cap (`0` = off).
+**Markup** is set from the site footer → **PIN** → Shipping Markup Settings: a percentage of the carrier rate (default **11%**) plus an optional fixed amount per label. Saving applies to the very next quote; quotes already shown keep their price until they expire (30 minutes). Every change is audit-logged. `APP_MARKUP_PERCENT` only sets the starting value on first run. `GET /api/health` shows the markup currently in effect.
 
 ## Local development
 

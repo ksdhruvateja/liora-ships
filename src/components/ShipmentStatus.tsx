@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/money";
 import { splitDisplayCourierName } from "@/lib/courier-names";
 import { EMPLOYEE_RECHARGE_BLOCKED_MESSAGE } from "@/lib/easyship-errors";
 import type { PublicShipment } from "@/lib/public-shipment";
+import { CancelLabelPanel } from "@/components/CancelLabelPanel";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME ?? "Liora Labs Shipping";
 const MAX_FAILED_RETRIES = 6;
@@ -15,8 +16,11 @@ function isPaymentFailure(shipment: PublicShipment) {
 
 async function loadShipment(shipmentId: string) {
   const response = await fetch(`/api/shipments/${shipmentId}`);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error ?? "Not found");
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data?.shipment) {
+    if (response.status === 404) throw new Error("We couldn’t find this shipment. Check the link in your email.");
+    throw new Error(data?.error ?? "We’re having trouble loading your shipment. Retrying…");
+  }
   return data.shipment as PublicShipment;
 }
 
@@ -67,8 +71,10 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
         setShipment(current);
         setError(null);
 
+        if (current.status === "REFUNDED") return;
+
         if (current.status === "LABEL_CREATED") {
-          await maybeEmail(current);
+          if (!current.cancelledAt) await maybeEmail(current);
           return;
         }
 
@@ -133,6 +139,56 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
   }
   if (!shipment) {
     return <p className="text-muted">Loading your shipment…</p>;
+  }
+
+  if (shipment.status === "REFUNDED") {
+    const refunded = shipment.refundCents ?? shipment.refundEstimateCents;
+    return (
+      <div className="surface mx-auto max-w-2xl p-6 sm:p-8">
+        <p className="eyebrow">Cancelled</p>
+        <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Label cancelled. Refund issued.</h1>
+        <p className="mt-3 text-muted">
+          {refunded > 0
+            ? `${formatMoney(refunded, shipment.currency)} is on its way back to your original payment method. Card refunds usually appear within 5–10 business days.`
+            : "This shipment was cancelled."}{" "}
+          Please don’t use the old label — it no longer works.
+        </p>
+        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm text-muted">Refund</dt>
+            <dd className="font-semibold">{formatMoney(refunded, shipment.currency)}</dd>
+          </div>
+          {shipment.refundedAt ? (
+            <div>
+              <dt className="text-sm text-muted">Refunded on</dt>
+              <dd className="font-semibold">{new Date(shipment.refundedAt).toLocaleDateString()}</dd>
+            </div>
+          ) : null}
+          <div>
+            <dt className="text-sm text-muted">Reference</dt>
+            <dd className="font-semibold">{shipment.id}</dd>
+          </div>
+        </dl>
+        <a href="/quote" className="btn-primary mt-8">
+          Create a new label
+          <span className="btn-arrow">→</span>
+        </a>
+      </div>
+    );
+  }
+
+  if (shipment.status === "LABEL_CREATED" && shipment.cancelledAt) {
+    return (
+      <div className="surface mx-auto max-w-2xl p-6 sm:p-8">
+        <p className="eyebrow">Cancelled</p>
+        <h1 className="mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl">Label cancelled</h1>
+        <p className="mt-3 text-muted">
+          The carrier voided your label. Your refund is still processing — retry below, or our team will complete it and
+          email you.
+        </p>
+        <CancelLabelPanel shipment={shipment} onUpdated={setShipment} retryRefund />
+      </div>
+    );
   }
 
   if (shipment.status === "RECHARGE_BLOCKED_BY_CARD_ISSUER") {
@@ -278,6 +334,7 @@ export function ShipmentStatus({ shipmentId }: { shipmentId: string }) {
             </a>
           ) : null}
         </div>
+        {shipment.canCancel ? <CancelLabelPanel shipment={shipment} onUpdated={setShipment} /> : null}
       </div>
     );
   }

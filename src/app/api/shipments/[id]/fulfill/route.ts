@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { handleStripeEvent } from "@/lib/stripe-webhook";
-import { ensureLabelEmailSent } from "@/lib/fulfillment";
+import { ensureLabelEmailSent, purchaseLabelForShipment } from "@/lib/fulfillment";
+import { getConfig } from "@/lib/config";
 import { toPublicShipment } from "@/lib/public-shipment";
 import type Stripe from "stripe";
 
@@ -26,7 +27,24 @@ export async function POST(
     return NextResponse.json({ error: "Payment has not started." }, { status: 409 });
   }
 
-  const intent = await getStripe().paymentIntents.retrieve(shipment.stripePaymentIntentId);
+  // Mock/demo mode: the "payment" is local, so retry the label directly instead of asking Stripe.
+  if (getConfig().mockMode && shipment.stripePaymentIntentId.startsWith("mock_")) {
+    try {
+      await purchaseLabelForShipment(shipment.id);
+    } catch (error) {
+      console.error("Mock fulfill failed", error);
+    }
+    const after = await prisma.shipment.findUnique({ where: { id: shipment.id } });
+    return NextResponse.json({ shipment: after ? toPublicShipment(after) : null });
+  }
+
+  let intent: Stripe.PaymentIntent;
+  try {
+    intent = await getStripe().paymentIntents.retrieve(shipment.stripePaymentIntentId);
+  } catch (error) {
+    console.error("Could not load payment", error);
+    return NextResponse.json({ error: "Couldn’t confirm the payment yet. Retrying…" }, { status: 502 });
+  }
   if (intent.status !== "succeeded") {
     return NextResponse.json(
       { error: "Payment has not succeeded yet.", status: intent.status },

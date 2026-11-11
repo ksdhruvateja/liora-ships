@@ -24,7 +24,7 @@ body {
 }
 
 body {
-  background: #f6f7fb;
+  background: #f5f7fc;
 }
 
 .wrap {
@@ -36,8 +36,8 @@ body {
 }
 
 .btn-primary .btn-arrow {
-  @apply grid h-7 w-7 place-items-center rounded-full text-sm font-bold text-white;
-  background: linear-gradient(135deg, #9b7cff 0%, #6a48f0 100%);
+  @apply grid h-7 w-7 place-items-center rounded-full text-sm font-bold text-ink;
+  background: #a8ec3a;
 }
 
 .btn-secondary {
@@ -70,5 +70,170 @@ body {
   .btn-secondary,
   .input-field {
     transition: none;
+  }
+}
+
+/* ---------- 3D + motion primitives ---------- */
+
+.container-sway {
+  transform-origin: 50% 0;
+  animation: container-sway 6s ease-in-out infinite;
+}
+
+@keyframes container-sway {
+  0%,
+  100% {
+    transform: rotateZ(2.5deg) rotateY(-18deg);
+  }
+  50% {
+    transform: rotateZ(-2.5deg) rotateY(-30deg);
+  }
+}
+
+.marquee-track {
+  animation: marquee 28s linear infinite;
+}
+
+.marquee-track.reverse {
+  animation-direction: reverse;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.glass {
+  @apply border border-white/60 bg-white/70 backdrop-blur-xl;
+}
+
+.full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .container-sway,
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* ---------- Hero entrance that runs without JavaScript ---------- */
+.rise {
+  animation: rise 1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.rise-1 { animation-delay: 0.08s; }
+.rise-2 { animation-delay: 0.2s; }
+.rise-3 { animation-delay: 0.4s; }
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+}
+
+/* ---------- Policy pages ---------- */
+.legal-prose h2 {
+  @apply mb-4 mt-8 text-2xl font-bold tracking-tight text-ink sm:text-3xl;
+}
+.legal-prose h3 {
+  @apply mb-2 mt-6 text-lg font-semibold text-ink;
+}
+.legal-prose p,
+.legal-prose li {
+  @apply text-base leading-relaxed text-ink/80;
+}
+.legal-prose p + p {
+  @apply mt-4;
+}
+.legal-prose ul {
+  @apply mt-3 list-disc space-y-2 pl-6;
+}
+.legal-prose ol {
+  @apply mt-3 list-decimal space-y-2 pl-6;
+}
+.legal-prose a {
+  @apply font-medium text-ocean-500 underline-offset-2 hover:underline;
+}
+.legal-prose strong {
+  @apply font-semibold text-ink;
+}
+.legal-callout {
+  @apply mt-4 rounded-2xl border border-ocean-100 bg-ocean-50 px-5 py-4 text-ink;
+}
+
+/* ---------- Tracking journey (home) ---------- */
+.tj-ping,
+.tj-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.tj-ping {
+  animation: tj-ping 2.2s ease-out infinite;
+}
+.tj-pulse {
+  animation: tj-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tj-ping {
+  from {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+@keyframes tj-pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tj-ping,
+  .tj-pulse {
+    animation: none;
+  }
+}
+
+/* ---------- Hero scroll cue ---------- */
+.scroll-cue {
+  animation: scroll-cue 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes scroll-cue {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(200%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue {
+    animation: none;
   }
 }

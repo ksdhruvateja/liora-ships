@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { formatMoney } from "@/lib/money";
@@ -16,6 +16,7 @@ import { MotionButton } from "@/components/motion/Pressable";
 import { PickupOptions } from "@/components/PickupOptions";
 import type { NormalizedPickupSlot } from "@/lib/easyship-pickups";
 import { REFERENCE_NUMBER_MAX_LENGTH } from "@/lib/reference-number";
+import { SavedAddressModal } from "@/components/SavedAddressModal";
 
 type Address = {
   line1: string;
@@ -222,31 +223,44 @@ function AddressFields({
   );
 }
 
-function SavedAddressPicker({
-  contacts,
-  value,
-  onPick,
+function SavedAddressButton({
+  count,
+  activeLabel,
+  onOpen,
 }: {
-  contacts: SavedContact[];
-  value: string;
-  onPick: (id: string) => void;
+  count: number;
+  activeLabel?: string;
+  onOpen: () => void;
 }) {
-  if (contacts.length === 0) return null;
+  if (count === 0) return null;
   return (
-    <Field label="Use a saved address">
-      <select
-        className={inputClass}
-        value={value}
-        onChange={(e) => onPick(e.target.value)}
-      >
-        <option value="">Type a new address below</option>
-        {contacts.map((contact) => (
-          <option key={contact.id} value={contact.id}>
-            {contact.label}
-          </option>
-        ))}
-      </select>
-    </Field>
+    <motion.button
+      type="button"
+      onClick={onOpen}
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.97 }}
+      className="flex w-full items-center gap-3 rounded-2xl border border-ocean-200 bg-ocean-50 px-4 py-3 text-left text-sm"
+    >
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-ocean-500 text-white">★</span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-ink">
+          {activeLabel ? "Using saved address" : `${count} saved ${count === 1 ? "address" : "addresses"}`}
+        </span>
+        <span className="block truncate text-muted">{activeLabel ?? "Tap to choose instead of typing"}</span>
+      </span>
+      <span className="font-semibold text-ocean-600">Change</span>
+    </motion.button>
+  );
+}
+
+function SectionTitle({ step, title }: { step: number; title: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-sm font-bold text-white">{step}</span>
+      <h2 className="text-2xl font-extrabold tracking-tight">{title}</h2>
+    </div>
   );
 }
 
@@ -280,21 +294,72 @@ export function QuoteForm() {
     finalTotalCents: number;
   }>({ pickupRequired: false, selectedSlot: null, finalTotalCents: 0 });
   const [continuing, setContinuing] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [modalFocus, setModalFocus] = useState<"both" | "ORIGIN" | "DESTINATION" | null>(null);
+  const promptedFor = useRef("");
+
+  // Prefill ZIPs handed over from the home page "Rate & Ship" tab.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromZip = params.get("fromZip")?.trim();
+    const toZip = params.get("toZip")?.trim();
+    if (fromZip) setOrigin((prev) => ({ ...prev, postalCode: fromZip }));
+    if (toZip) setDestination((prev) => ({ ...prev, postalCode: toZip }));
+    // Box size handed over from the home page "Build your box" section.
+    const num = (key: string) => {
+      const value = Number(params.get(key));
+      return Number.isFinite(value) && value > 0 ? String(value) : "";
+    };
+    const dims = { length: num("length"), width: num("width"), height: num("height"), weight: num("weight") };
+    if (dims.length || dims.width || dims.height || dims.weight) {
+      setParcel((prev) => ({
+        ...prev,
+        length: dims.length || prev.length,
+        width: dims.width || prev.width,
+        height: dims.height || prev.height,
+        weight: dims.weight || prev.weight,
+        dimensionUnit: "in",
+        weightUnit: "lb",
+      }));
+    }
+  }, []);
 
   useEffect(() => {
-    const email = customerEmail.trim();
-    if (!email.includes("@")) {
+    const email = customerEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
       setSavedContacts([]);
+      setLookingUp(false);
       return;
     }
+    let cancelled = false;
+    setLookingUp(true);
     const timer = window.setTimeout(() => {
       fetch(`/api/contacts?email=${encodeURIComponent(email)}`)
-        .then((response) => response.json())
-        .then((data) => setSavedContacts(data.contacts ?? []))
-        .catch(() => setSavedContacts([]));
-    }, 400);
-    return () => window.clearTimeout(timer);
+        .then((response) => (response.ok ? response.json() : { contacts: [] }))
+        .then((data) => {
+          if (cancelled) return;
+          const contacts: SavedContact[] = data.contacts ?? [];
+          setSavedContacts(contacts);
+          // Pop the saved From / To picker once per email address.
+          if (contacts.length > 0 && promptedFor.current !== email) {
+            promptedFor.current = email;
+            setModalFocus("both");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setSavedContacts([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLookingUp(false);
+        });
+    }, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [customerEmail]);
+
+  const closeModal = useCallback(() => setModalFocus(null), []);
 
   const originSaved = useMemo(
     () => savedContacts.filter((row) => row.role === "ORIGIN"),
@@ -333,6 +398,17 @@ export function QuoteForm() {
       setDestination(next);
     }
   }
+
+  function applyFromModal(originId: string, destId: string) {
+    if (originId) applySavedAddress("ORIGIN", originId);
+    else setOriginSavedId("");
+    if (destId) applySavedAddress("DESTINATION", destId);
+    else setDestSavedId("");
+    setModalFocus(null);
+  }
+
+  const originLabel = originSaved.find((row) => row.id === originSavedId)?.label;
+  const destLabel = destSaved.find((row) => row.id === destSavedId)?.label;
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -401,31 +477,60 @@ export function QuoteForm() {
     <div className="space-y-6">
       <form onSubmit={onSubmit} className="space-y-6" autoComplete="off">
         <section className="surface p-5 sm:p-6">
-          <h2 className="text-2xl font-extrabold tracking-tight">Your details</h2>
-          <p className="mt-1 text-sm text-muted">We’ll email the label and tracking number here. Fields marked * are required.</p>
-          <div className="mt-4 max-w-md">
-            <Field label="Email" required>
-              <input
-                className={inputClass}
-                type="email"
-                autoComplete="email"
-                required
-                value={customerEmail}
-                onChange={(e) => setCustomerEmail(e.target.value)}
-              />
-            </Field>
+          <SectionTitle step={1} title="Your details" />
+          <p className="mt-2 text-sm text-muted">
+            We’ll email the label and tracking number here. Shipped before? Your saved From and To addresses pop up.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="w-full max-w-md">
+              <Field label="Email" required>
+                <div className="relative">
+                  <input
+                    className={`${inputClass} pr-11`}
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                  />
+                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+                    {lookingUp ? (
+                      <span className="block h-4 w-4 animate-spin rounded-full border-2 border-ocean-200 border-t-ocean-500" />
+                    ) : savedContacts.length > 0 ? (
+                      <span className="text-emerald-600">✓</span>
+                    ) : null}
+                  </span>
+                </div>
+              </Field>
+            </div>
+            <AnimatePresence>
+              {savedContacts.length > 0 ? (
+                <motion.button
+                  key="saved-chip"
+                  type="button"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  whileHover={{ y: -2 }}
+                  onClick={() => setModalFocus("both")}
+                  className="btn-secondary min-h-12 !border-ocean-200 !bg-ocean-50 text-ocean-700"
+                >
+                  ★ {savedContacts.length} saved {savedContacts.length === 1 ? "address" : "addresses"}
+                </motion.button>
+              ) : null}
+            </AnimatePresence>
           </div>
         </section>
 
         <div className="grid w-full grid-cols-1 items-start gap-6 lg:grid-cols-2">
           <section className="surface min-w-0 w-full overflow-visible p-5 sm:p-6">
-            <h2 className="text-2xl font-extrabold tracking-tight">From</h2>
-            <p className="mt-1 text-sm text-muted">US addresses only. Pick a state from the list, or use a saved address after you have shipped once.</p>
+            <SectionTitle step={2} title="From" />
+            <p className="mt-2 text-sm text-muted">US addresses only.</p>
             <div className="mt-3">
-              <SavedAddressPicker
-                contacts={originSaved}
-                value={originSavedId}
-                onPick={(id) => applySavedAddress("ORIGIN", id)}
+              <SavedAddressButton
+                count={originSaved.length}
+                activeLabel={originLabel}
+                onOpen={() => setModalFocus("ORIGIN")}
               />
             </div>
             <div className="mt-4">
@@ -437,13 +542,13 @@ export function QuoteForm() {
             </div>
           </section>
           <section className="surface min-w-0 w-full overflow-visible p-5 sm:p-6">
-            <h2 className="text-2xl font-extrabold tracking-tight">To</h2>
-            <p className="mt-1 text-sm text-muted">US addresses only. Pick a state from the list, or use a saved address after you have shipped once.</p>
+            <SectionTitle step={3} title="To" />
+            <p className="mt-2 text-sm text-muted">US addresses only.</p>
             <div className="mt-3">
-              <SavedAddressPicker
-                contacts={destSaved}
-                value={destSavedId}
-                onPick={(id) => applySavedAddress("DESTINATION", id)}
+              <SavedAddressButton
+                count={destSaved.length}
+                activeLabel={destLabel}
+                onOpen={() => setModalFocus("DESTINATION")}
               />
             </div>
             <div className="mt-4">
@@ -456,7 +561,7 @@ export function QuoteForm() {
         </div>
 
         <section className="surface p-5 sm:p-6">
-          <h2 className="text-2xl font-extrabold tracking-tight">Parcel</h2>
+          <SectionTitle step={4} title="Parcel" />
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
             <Field label="Length" required>
               <input className={inputClass} type="number" min={0.1} step={0.1} required value={parcel.length} onChange={(e) => setParcel({ ...parcel, length: e.target.value })} />
@@ -538,8 +643,11 @@ export function QuoteForm() {
               />
             </Field>
           </div>
-          <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-ink">
-            <strong>No returns.</strong> Labels once fetched cannot be returned, cancelled, or refunded.
+          <p className="mt-5 rounded-xl border border-ocean-100 bg-ocean-50 px-4 py-3 text-sm text-ink">
+            <strong>Changed your mind?</strong> Unused labels can be cancelled for a refund.{" "}
+            <a href="/refund-policy" className="font-medium text-ocean-500 hover:underline">
+              Refund policy
+            </a>
           </p>
           <MotionButton
             type="submit"
@@ -567,7 +675,7 @@ export function QuoteForm() {
           transition={{ type: "spring", stiffness: 160, damping: 22 }}
         >
           <h2 className="text-2xl font-extrabold tracking-tight">Choose a service</h2>
-          <p className="mt-1 text-sm text-muted">Prices shown are what you pay. No extra carrier checkout. Labels once fetched cannot be returned.</p>
+          <p className="mt-1 text-sm text-muted">Prices shown are what you pay. No extra carrier checkout.</p>
           <div className="mt-4 space-y-3">
             {rates.map((rate) => {
               const active = rate.shipmentId === selectedId;
@@ -666,6 +774,18 @@ export function QuoteForm() {
         </motion.section>
       ) : null}
       </AnimatePresence>
+
+      <SavedAddressModal
+        open={modalFocus !== null}
+        focus={modalFocus ?? "both"}
+        email={customerEmail.trim()}
+        origins={originSaved}
+        destinations={destSaved}
+        initialOriginId={originSavedId}
+        initialDestId={destSavedId}
+        onApply={applyFromModal}
+        onClose={closeModal}
+      />
     </div>
   );
 }

@@ -61,7 +61,14 @@ export type PurchasedPickup = {
   raw: Record<string, unknown>;
 };
 
+export type CancelShipmentResult =
+  | { ok: true; message: string }
+  /** The carrier/Easyship refused (e.g. parcel already in transit, label voided, too old). */
+  | { ok: false; reason: "not_cancellable" | "not_found" | "error"; message: string };
+
 export type EasyshipClient = {
+  /** Void a purchased label. Easyship: POST /shipments/{id}/cancel. */
+  cancelShipment: (easyshipShipmentId: string) => Promise<CancelShipmentResult>;
   requestRates: (input: {
     origin: AddressInput;
     destination: AddressInput;
@@ -282,6 +289,24 @@ export function createEasyshipClient(options: {
   }
 
   return {
+    async cancelShipment(easyshipShipmentId) {
+      const { response, body } = await easyshipFetchRaw(
+        `/shipments/${encodeURIComponent(easyshipShipmentId)}/cancel`,
+        { method: "POST" },
+      );
+      const details = Array.isArray(body?.error?.details)
+        ? body.error.details.filter(Boolean).join("; ")
+        : "";
+      const message =
+        [body?.error?.message, details].filter(Boolean).join(" — ") ||
+        body?.success?.message ||
+        `Cancel request returned ${response.status}`;
+      if (response.ok) return { ok: true as const, message };
+      if (response.status === 404) return { ok: false as const, reason: "not_found" as const, message };
+      if (response.status === 422) return { ok: false as const, reason: "not_cancellable" as const, message };
+      return { ok: false as const, reason: "error" as const, message };
+    },
+
     async getWalletBalance() {
       const body = await easyshipFetch<{
         account?: {

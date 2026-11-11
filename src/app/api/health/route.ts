@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { isMarkupPinConfigured } from "@/lib/markup-pin";
+import { readShippingMarkupStatus } from "@/lib/markup-settings";
 import { stripeWebhookUrl } from "@/lib/env";
 
 export const runtime = "nodejs";
@@ -9,11 +10,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const config = getConfig();
-  const markup = {
-    percent: config.APP_MARKUP_PERCENT,
-    floorCents: config.APP_MARKUP_FLAT_CENTS,
-    capCents: config.APP_MARKUP_CAP_CENTS,
-  };
+  // The markup actually applied to new quotes (set in the footer PIN panel).
+  const markup = await readShippingMarkupStatus();
   const urls = {
     appUrl: config.appUrl,
     stripeWebhookUrl: stripeWebhookUrl(config.appUrl),
